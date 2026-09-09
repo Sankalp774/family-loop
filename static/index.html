@@ -6,7 +6,7 @@
   <title>Family Loop — the desk, not the lock</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Karla:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -20,6 +20,33 @@
       </div>
     </div>
     <p class="stamp">We do not control the device.</p>
+    <div class="agent-dock" id="agent-dock">
+      <button type="button" class="agent-fab" id="agent-toggle" aria-expanded="false">
+        <span class="agent-stack" aria-hidden="true">
+          <i class="av av-desk">D</i>
+          <i class="av av-setup">S</i>
+          <i class="av av-triage">T</i>
+          <i class="av av-check">C</i>
+          <i class="av av-digest">G</i>
+          <i class="av av-clerk">O</i>
+        </span>
+        <span class="agent-fab-label">6 agents</span>
+      </button>
+      <div class="agent-pop" id="agent-pop" hidden>
+        <p class="agent-pop-kicker">How the desk works</p>
+        <h2>Six specialists. One knock.</h2>
+        <p class="agent-pop-lede">They run in the background. You only see a card when a human has to say yes or no.</p>
+        <ol class="agent-guide">
+          <li data-agent="desk"><b>Family desk</b> — orchestrator. Routes “new ask”, “ping due”, and “it’s Sunday” to the right specialist.</li>
+          <li data-agent="setup"><b>Setup coach</b> — turns Meera’s answers into a Family Policy. Does not only chat.</li>
+          <li data-agent="triage"><b>Request triage</b> — allow, deny, or ask parent. No silent yes on social, money, or new contacts.</li>
+          <li data-agent="check"><b>Check-in runner</b> — Saturday file + random Screen Time pings. Stores the paste the human made.</li>
+          <li data-agent="digest"><b>Digest writer</b> — Sunday Red / Needs you / Green, then a WhatsApp-shaped letter.</li>
+          <li data-agent="clerk"><b>Override clerk</b> — logs Meera’s yes/no and one-off exceptions. Aarav cannot approve himself.</li>
+        </ol>
+        <p class="tiny">Strands agents-as-tools on Bedrock. Deterministic Python owns the store.</p>
+      </div>
+    </div>
     <div class="top-meta" id="top-meta" hidden>
       <span id="who"></span>
       <span id="clock-label"></span>
@@ -54,63 +81,101 @@
     </section>
 
     <section id="parent" class="desk" hidden>
+      <form id="family-form" class="family-bar">
+        <label>Parent <input name="parent_name" value="Meera" /></label>
+        <label>Child <input name="child_name" value="Aarav" /></label>
+        <label>City <input name="city" value="Bengaluru" /></label>
+        <button type="submit" class="btn-primary">Save family</button>
+      </form>
       <div class="desk-grid">
         <article class="panel clipboard">
           <h2>House rules</h2>
-          <p class="hint">Everyday words. You are not writing code. The desk turns this into a policy for the agents.</p>
+          <p class="hint">Every line here is editable. Save when it matches how you actually parent.</p>
           <div class="policy-card" id="policy-card"></div>
           <form id="setup-form">
-            <label>How old is Aarav? <input name="age" type="number" min="6" max="17" value="13" /></label>
+            <label>How old is the child? <input name="age" type="number" min="6" max="17" value="13" /></label>
             <div class="pair">
               <label>School starts <input name="school_start" type="time" value="08:00" /></label>
               <label>School ends <input name="school_end" type="time" value="15:00" /></label>
             </div>
             <fieldset>
               <legend>Ask me first</legend>
-              <p class="tiny">Tap what should wait for a yes from you.</p>
+              <p class="tiny">Tap to toggle. Add your own if the list is missing something.</p>
               <div class="chips" id="ask-first"></div>
+              <div class="chip-add"><input id="ask-first-new" placeholder="Add a rule, e.g. new game" /><button type="button" class="btn-sky" id="ask-first-add">Add</button></div>
             </fieldset>
             <fieldset>
               <legend>Never allowed</legend>
               <p class="tiny">These are a no without asking.</p>
               <div class="chips" id="hard-no"></div>
+              <div class="chip-add"><input id="hard-no-new" placeholder="Add a hard no" /><button type="button" class="btn-deny" id="hard-no-add">Add</button></div>
             </fieldset>
-            <label class="check"><input name="youtube_after_homework" type="checkbox" checked /> YouTube only after homework (after 5pm)</label>
+            <fieldset>
+              <legend>Already allowed apps</legend>
+              <div class="chips" id="allowed-apps"></div>
+              <div class="chip-add"><input id="allowed-new" placeholder="Add an app" /><button type="button" class="btn-allow" id="allowed-add">Add</button></div>
+            </fieldset>
+            <label class="check"><input name="youtube_after_homework" type="checkbox" checked /> YouTube only after homework</label>
+            <label>Homework done after <input name="homework_done_after" type="time" value="17:00" /></label>
             <label class="check"><input name="sports_phone_preset" type="checkbox" checked /> Sports phone: Maps and Phone during practice</label>
+            <p class="tiny">Practice days</p>
+            <div class="chips" id="sports-days"></div>
+            <div class="pair">
+              <label>Practice starts <input name="sports_start" type="time" value="16:30" /></label>
+              <label>Practice ends <input name="sports_end" type="time" value="18:00" /></label>
+            </div>
             <label>Daily cap (minutes) <input name="daily_cap_minutes" type="number" value="120" /></label>
             <label>Your note (plain language)
               <textarea name="notes" id="parent-notes" rows="3"></textarea>
             </label>
-            <button type="submit" class="primary">Save house rules</button>
+            <button type="submit" class="btn-primary">Save house rules</button>
           </form>
         </article>
 
         <article class="panel locks">
           <h2>Phone locks</h2>
-          <p class="hint">Tick what the phone is already doing. Unchecked → Sunday Red. We do not flip the OS.</p>
+          <p class="hint">Tick what the phone is already doing. Changes save as you tap. Unchecked → Sunday Red.</p>
           <form id="locks-form"></form>
           <p class="locks-status" id="locks-status"></p>
         </article>
 
         <article class="panel inbox">
           <h2>Needs a yes or no</h2>
-          <p class="hint">You only see this when the desk cannot file it alone.</p>
+          <p class="hint">Edit, allow, deny, or file an ask for Aarav if he will not.</p>
+          <form id="parent-ask-form" class="ask-form card">
+            <label>Kind
+              <select name="kind">
+                <option value="visit_site">Visit a site</option>
+                <option value="install_app">Install an app</option>
+                <option value="extra_time">Extra time</option>
+                <option value="new_contact">New in-app friend</option>
+              </select>
+            </label>
+            <label>What <input name="subject" placeholder="Reddit" required /></label>
+            <label>Why <textarea name="detail" rows="2" placeholder="Filing this because Aarav asked at dinner"></textarea></label>
+            <label class="check"><input name="costs_money" type="checkbox" /> This costs money</label>
+            <button type="submit" class="btn-amber">File an ask</button>
+          </form>
           <div id="inbox-list" class="stack"></div>
         </article>
 
         <article class="panel sunday">
           <h2>Sunday envelope</h2>
-          <p class="hint">Yellow Saturday is submission. Green Sunday is evaluation. Buttons stand in for the clock.</p>
+          <p class="hint">Run the desk, then edit the letter before it sits in the outbox.</p>
           <div class="demo-rail">
-            <button type="button" data-demo="saturday">It’s Saturday</button>
-            <button type="button" data-demo="ping">Simulate random ask</button>
-            <button type="button" data-demo="sunday">It’s Sunday</button>
-            <button type="button" class="primary" data-demo="digest">Run Sunday digest</button>
+            <button type="button" class="btn-sun" data-demo="saturday">It’s Saturday</button>
+            <button type="button" class="btn-sky" data-demo="ping">Simulate random ask</button>
+            <button type="button" class="btn-mint" data-demo="sunday">It’s Sunday</button>
+            <button type="button" class="btn-primary" data-demo="live">Live calendar</button>
+            <button type="button" class="btn-digest" data-demo="digest">Run Sunday digest</button>
           </div>
           <div id="digest-board" class="digest-board"></div>
           <div class="wa" id="wa-thread">
-            <header>Simulated WhatsApp · not a vendor send</header>
-            <div id="wa-body" class="wa-body">No letter in the outbox yet.</div>
+            <header>Simulated WhatsApp · you can edit this</header>
+            <form id="outbox-form">
+              <textarea id="wa-edit" name="body" rows="6" placeholder="Sunday letter for Meera…"></textarea>
+              <button type="submit" class="btn-primary">Save letter</button>
+            </form>
           </div>
         </article>
       </div>
@@ -118,8 +183,8 @@
         <div class="tape-head">
           <h2>Desk tape</h2>
           <div class="tiny-actions">
-            <button type="button" data-demo="reset">Reset demo</button>
-            <button type="button" data-demo="week">Seed a quiet week</button>
+            <button type="button" class="btn-deny" data-demo="reset">Reset demo</button>
+            <button type="button" class="btn-sky" data-demo="week">Seed a quiet week</button>
           </div>
         </div>
         <ol id="agent-log"></ol>
@@ -144,10 +209,14 @@
           <h2>Screen Time paste</h2>
           <p class="hint">Family Loop cannot see the phone. Paste the list from Screen Time / Digital Wellbeing. Saturday is the yellow submission day.</p>
           <form id="checkin-form">
-            <textarea name="raw_list" rows="8" placeholder="YouTube 45&#10;WhatsApp 20&#10;Google Classroom 15"></textarea>
-            <button type="submit" class="primary child-btn">File snapshot</button>
+            <label>Photo of Screen Time / Digital Wellbeing
+              <input name="image" type="file" id="checkin-photo" accept="image/*" />
+            </label>
+            <p class="tiny" id="ocr-status">Upload a screenshot. We read the picture to text, then file the list.</p>
+            <textarea name="raw_list" id="checkin-text" rows="8" placeholder="YouTube 45&#10;WhatsApp 20&#10;Google Classroom 15"></textarea>
+            <button type="submit" class="btn-child">File snapshot</button>
           </form>
-          <p class="tiny">Source is always labelled human paste. There is no live install spy.</p>
+          <p class="tiny">Photo is OCR’d on this device. Source is labelled human paste. We do not control the device.</p>
         </article>
       </div>
       <div id="child-calendar" class="cal-wrap"></div>
@@ -168,7 +237,7 @@
       <label>Why <textarea name="detail" rows="2" placeholder="Want to read r/learnpython"></textarea></label>
       <label class="check"><input name="costs_money" type="checkbox" /> This costs money</label>
       <div class="row-actions">
-        <button type="submit" class="primary child-btn">Send to the desk</button>
+        <button type="submit" class="btn-child">Send to the desk</button>
         <button type="button" class="remove-ask text-btn">Remove</button>
       </div>
     </form>
@@ -223,8 +292,8 @@
       <label>Notes <textarea name="notes" rows="2" placeholder="Anything the other person should know"></textarea></label>
       <label class="check"><input name="important" type="checkbox" /> Mark as important</label>
       <div class="row-actions">
-        <button type="submit" class="primary">Save event</button>
-        <button type="button" id="event-delete" class="danger" hidden>Delete</button>
+        <button type="submit" class="btn-primary">Save event</button>
+        <button type="button" id="event-delete" class="btn-deny" hidden>Delete</button>
       </div>
     </form>
   </div>

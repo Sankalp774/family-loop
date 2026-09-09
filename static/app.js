@@ -12,6 +12,15 @@ const FALLBACK_HARD = [
 ];
 const DEFAULT_NOTE =
   "Sports-phone preset: Maps and Phone extra time during practice is allowed. YouTube extra time waits until after homework hours (17:00).";
+const DAY_CHIPS = [
+  { key: "0", label: "Mon" },
+  { key: "1", label: "Tue" },
+  { key: "2", label: "Wed" },
+  { key: "3", label: "Thu" },
+  { key: "4", label: "Fri" },
+  { key: "5", label: "Sat" },
+  { key: "6", label: "Sun" },
+];
 
 const state = {
   user: null,
@@ -46,8 +55,9 @@ function toast(msg) {
 
 function chips(container, options, selected) {
   container.innerHTML = "";
+  container._options = options;
   options.forEach((opt) => {
-    const key = opt.key || opt;
+    const key = String(opt.key || opt);
     const label = opt.label || String(key).replaceAll("_", " ");
     const hint = opt.hint || "";
     const btn = document.createElement("button");
@@ -63,6 +73,35 @@ function chips(container, options, selected) {
     container.appendChild(btn);
   });
   container._selected = selected;
+}
+
+function addCustomChip(container, label) {
+  const text = (label || "").trim();
+  if (!text) return;
+  const key = text.toLowerCase().replace(/\s+/g, "_");
+  const options = container._options || [];
+  if (!options.some((opt) => String(opt.key || opt) === key)) {
+    options.push({ key, label: text });
+  }
+  const selected = container._selected || new Set();
+  selected.add(key);
+  chips(container, options, selected);
+}
+
+function removableChips(container, items) {
+  container.innerHTML = "";
+  container._items = items;
+  items.forEach((name, index) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chip on";
+    btn.innerHTML = `${escapeHtml(name)}<span class="x">×</span>`;
+    btn.addEventListener("click", () => {
+      items.splice(index, 1);
+      removableChips(container, items);
+    });
+    container.appendChild(btn);
+  });
 }
 
 function show(view) {
@@ -101,7 +140,8 @@ function renderCalendar(host, calendar, role) {
         <button type="button" data-cal="prev">←</button>
         <button type="button" data-cal="today">Today</button>
         <button type="button" data-cal="next">→</button>
-        <button type="button" class="primary" data-cal="create">+ Event</button>
+        <button type="button" class="btn-primary" data-cal="create">+ Event</button>
+        ${role === "parent" ? '<button type="button" class="btn-sky" data-cal="live">Live date</button>' : ""}
       </div>
     </div>
     <div class="cal-toolbar">
@@ -179,6 +219,12 @@ function renderCalendar(host, calendar, role) {
   });
   host.querySelectorAll("[data-cal='create']").forEach((btn) => {
     btn.addEventListener("click", () => openEventEditor({ date: picked?.date || calendar.today }));
+  });
+  host.querySelector("[data-cal='live']")?.addEventListener("click", async () => {
+    const data = await api("/api/demo/live", { method: "POST" });
+    state.data = data.state;
+    toast("Calendar is on the live date.");
+    render();
   });
   host.querySelectorAll("[data-view]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -332,6 +378,8 @@ function fillSetupForm(s) {
   const choices = s.choices || {};
   if (!policy) {
     bindChoices(choices);
+    chips($("sports-days"), DAY_CHIPS, new Set(["1", "3"]));
+    removableChips($("allowed-apps"), ["YouTube", "WhatsApp", "Khan Academy", "Google Classroom", "Maps", "Phone"]);
     return;
   }
   form.age.value = policy.age || 13;
@@ -341,8 +389,27 @@ function fillSetupForm(s) {
   form.youtube_after_homework.checked = !!policy.youtube_after_homework;
   form.sports_phone_preset.checked = !!policy.sports_phone_preset;
   form.notes.value = policy.notes || choices.parent_note_default || DEFAULT_NOTE;
-  chips($("ask-first"), choices.ask_first || FALLBACK_ASK, new Set(policy.ask_first || []));
-  chips($("hard-no"), choices.hard_no || FALLBACK_HARD, new Set(policy.hard_no || []));
+  if (form.homework_done_after) form.homework_done_after.value = policy.homework_done_after || "17:00";
+  if (form.sports_start) form.sports_start.value = policy.sports_hours?.start || "16:30";
+  if (form.sports_end) form.sports_end.value = policy.sports_hours?.end || "18:00";
+  const askOpts = [...(choices.ask_first || FALLBACK_ASK)];
+  (policy.ask_first || []).forEach((key) => {
+    if (!askOpts.some((opt) => (opt.key || opt) === key)) askOpts.push({ key, label: key.replaceAll("_", " ") });
+  });
+  const hardOpts = [...(choices.hard_no || FALLBACK_HARD)];
+  (policy.hard_no || []).forEach((key) => {
+    if (!hardOpts.some((opt) => (opt.key || opt) === key)) hardOpts.push({ key, label: key.replaceAll("_", " ") });
+  });
+  chips($("ask-first"), askOpts, new Set((policy.ask_first || []).map(String)));
+  chips($("hard-no"), hardOpts, new Set((policy.hard_no || []).map(String)));
+  chips($("sports-days"), DAY_CHIPS, new Set((policy.sports_days || [1, 3]).map(String)));
+  removableChips($("allowed-apps"), [...(policy.approved_apps || [])]);
+  const family = $("family-form");
+  if (family) {
+    family.parent_name.value = s.parent?.name || "Meera";
+    family.child_name.value = s.child?.name || "Aarav";
+    family.city.value = s.child?.city || "Bengaluru";
+  }
 }
 
 function renderParent() {
@@ -360,7 +427,7 @@ function renderParent() {
   });
   const save = document.createElement("button");
   save.type = "submit";
-  save.className = "primary";
+  save.className = "btn-sky";
   save.textContent = "Save checklist";
   form.appendChild(save);
   $("locks-status").textContent = s.locks_complete
@@ -368,17 +435,21 @@ function renderParent() {
     : "Locks not finished. Sunday will go Red: detection is weak.";
 
   const inbox = $("inbox-list");
-  const pending = (s.requests || []).filter((r) => r.status === "pending");
-  inbox.innerHTML = pending.length ? "" : "<p class='muted'>Inbox empty. You only show up for a real yes or no.</p>";
-  pending.forEach((req) => {
+  const rows = s.requests || [];
+  inbox.innerHTML = rows.length ? "" : "<p class='muted'>Inbox empty. File an ask above, or wait for Aarav.</p>";
+  rows.slice().reverse().forEach((req) => {
     const card = document.createElement("div");
-    card.className = "card";
-    card.innerHTML = `<h3>${escapeHtml(kindLabel(req.kind))} · ${escapeHtml(req.subject)}</h3>
-      <p class="muted">${escapeHtml(req.detail || "")}</p>
-      <p>${escapeHtml(req.reason || "")}</p>
+    card.className = "card inbox-card";
+    card.innerHTML = `<h3>${escapeHtml(kindLabel(req.kind))} · ${escapeHtml(req.status)}</h3>
+      <label>What <input data-edit-subject="${req.id}" value="${escapeAttr(req.subject || "")}" /></label>
+      <label>Why <textarea data-edit-detail="${req.id}" rows="2">${escapeAttr(req.detail || "")}</textarea></label>
+      <label>Your note <textarea data-edit-note="${req.id}" rows="2">${escapeAttr(req.parent_note || "")}</textarea></label>
+      <p class="tiny">${escapeHtml(req.reason || "")}</p>
       <div class="row-actions">
-        <button type="button" data-allow="${req.id}">Allow once</button>
-        <button type="button" data-deny="${req.id}">Deny</button>
+        <button type="button" class="btn-allow" data-allow="${req.id}">Allow</button>
+        <button type="button" class="btn-deny" data-deny="${req.id}">Deny</button>
+        <button type="button" class="btn-sky" data-pending="${req.id}">Make pending</button>
+        <button type="button" class="btn-primary" data-save-ask="${req.id}">Save edits</button>
       </div>`;
     inbox.appendChild(card);
   });
@@ -399,9 +470,10 @@ function renderParent() {
   }
   const lastMsg = (s.outbox || []).filter((m) => m.channel === "whatsapp").slice(-1)[0]
     || (s.outbox || []).slice(-1)[0];
-  $("wa-body").innerHTML = lastMsg
-    ? `<div class="bubble">${escapeHtml(lastMsg.body)}</div>`
-    : "No letter in the outbox yet.";
+  const wa = $("wa-edit");
+  if (wa && document.activeElement !== wa) {
+    wa.value = lastMsg?.body || digest?.whatsapp || "";
+  }
 
   const log = $("agent-log");
   log.innerHTML = (s.agent_log || []).slice().reverse().map((row) =>
@@ -441,6 +513,14 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll("\n", "<br/>");
+}
+
+function escapeAttr(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 function addAskForm(prefill) {
@@ -511,6 +591,24 @@ document.querySelectorAll(".door").forEach((btn) => {
   btn.addEventListener("click", () => enter(btn.dataset.role).catch((err) => toast(err.message)));
 });
 
+const agentDock = $("agent-dock");
+const agentToggle = $("agent-toggle");
+const agentPop = $("agent-pop");
+function closeAgents() {
+  if (!agentPop) return;
+  agentPop.hidden = true;
+  agentToggle?.setAttribute("aria-expanded", "false");
+}
+agentToggle?.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  const open = agentPop.hidden;
+  agentPop.hidden = !open;
+  agentToggle.setAttribute("aria-expanded", open ? "true" : "false");
+});
+document.addEventListener("click", (ev) => {
+  if (agentDock && !agentDock.contains(ev.target)) closeAgents();
+});
+
 $("logout").addEventListener("click", async () => {
   await api("/api/logout", { method: "POST" });
   state.user = null;
@@ -532,6 +630,11 @@ $("setup-form").addEventListener("submit", async (ev) => {
     sports_phone_preset: fd.get("sports_phone_preset") === "on",
     daily_cap_minutes: Number(fd.get("daily_cap_minutes")),
     notes: fd.get("notes") || DEFAULT_NOTE,
+    approved_apps: $("allowed-apps")._items || [],
+    sports_days: [...($("sports-days")._selected || [])].map(Number),
+    sports_hours: { start: fd.get("sports_start"), end: fd.get("sports_end") },
+    homework_done_after: fd.get("homework_done_after"),
+    child_name: $("family-form")?.child_name?.value || undefined,
   };
   const data = await api("/api/setup", { method: "POST", body: JSON.stringify(payload) });
   state.data = data.state;
@@ -551,21 +654,109 @@ $("locks-form").addEventListener("submit", async (ev) => {
   };
   const data = await api("/api/locks", { method: "POST", body: JSON.stringify(payload) });
   state.data = data.state;
+  $("locks-status").textContent = data.state.locks_complete
+    ? `Locks claimed on ${data.state.locks?.locks_claimed_on || "today"}. Detection is only as strong as this list.`
+    : "Locks not finished. Sunday will go Red: detection is weak.";
   toast("Checklist saved. Still not an OS write.");
-  render();
 });
 
 $("inbox-list").addEventListener("click", async (ev) => {
   const allow = ev.target.dataset.allow;
   const deny = ev.target.dataset.deny;
-  const id = allow || deny;
+  const pending = ev.target.dataset.pending;
+  const saveAsk = ev.target.dataset.saveAsk;
+  const id = allow || deny || pending || saveAsk;
   if (!id) return;
+  const note = document.querySelector(`[data-edit-note="${id}"]`)?.value || "";
+  const subject = document.querySelector(`[data-edit-subject="${id}"]`)?.value;
+  const detail = document.querySelector(`[data-edit-detail="${id}"]`)?.value;
+  if (saveAsk || pending) {
+    const data = await api(`/api/asks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: pending ? "pending" : undefined,
+        parent_note: note,
+        subject,
+        detail,
+      }),
+    });
+    state.data = data.state;
+    toast(pending ? "Ask is pending again." : "Ask edits saved.");
+    render();
+    return;
+  }
   const data = await api(`/api/asks/${id}/decide`, {
     method: "POST",
-    body: JSON.stringify({ status: allow ? "allowed" : "denied", note: allow ? "Parent allowed once." : "Not this week." }),
+    body: JSON.stringify({ status: allow ? "allowed" : "denied", note: note || (allow ? "Parent allowed once." : "Not this week.") }),
   });
   state.data = data.state;
   render();
+});
+
+$("family-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const data = await api("/api/family", {
+    method: "PATCH",
+    body: JSON.stringify({
+      parent_name: fd.get("parent_name"),
+      child_name: fd.get("child_name"),
+      city: fd.get("city"),
+    }),
+  });
+  state.data = data.state;
+  toast("Family details saved.");
+  render();
+});
+
+$("parent-ask-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const data = await api("/api/asks", {
+    method: "POST",
+    body: JSON.stringify({
+      kind: fd.get("kind"),
+      subject: fd.get("subject"),
+      detail: fd.get("detail"),
+      costs_money: fd.get("costs_money") === "on",
+    }),
+  });
+  state.data = data.state;
+  ev.target.reset();
+  toast("Ask filed on the desk.");
+  render();
+});
+
+$("outbox-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const data = await api("/api/outbox", {
+    method: "POST",
+    body: JSON.stringify({ channel: "whatsapp", body: $("wa-edit").value }),
+  });
+  state.data = data.state;
+  toast("Sunday letter saved.");
+  render();
+});
+
+$("ask-first-add").addEventListener("click", () => {
+  addCustomChip($("ask-first"), $("ask-first-new").value);
+  $("ask-first-new").value = "";
+});
+$("hard-no-add").addEventListener("click", () => {
+  addCustomChip($("hard-no"), $("hard-no-new").value);
+  $("hard-no-new").value = "";
+});
+$("allowed-add").addEventListener("click", () => {
+  const name = $("allowed-new").value.trim();
+  if (!name) return;
+  const items = $("allowed-apps")._items || [];
+  if (!items.includes(name)) items.push(name);
+  removableChips($("allowed-apps"), items);
+  $("allowed-new").value = "";
+});
+
+$("locks-form").addEventListener("change", () => {
+  $("locks-form").requestSubmit();
 });
 
 document.querySelectorAll("[data-demo]").forEach((btn) => {
@@ -578,6 +769,7 @@ document.querySelectorAll("[data-demo]").forEach((btn) => {
       digest: "/api/digest",
       reset: "/api/demo/reset",
       week: "/api/demo/week",
+      live: "/api/demo/live",
     }[kind];
     const data = await api(path, { method: "POST" });
     state.data = data.state;
@@ -596,6 +788,28 @@ $("checkin-form").addEventListener("submit", async (ev) => {
   state.data = data.state;
   toast("Snapshot filed as a human paste.");
   render();
+});
+
+$("checkin-photo")?.addEventListener("change", async (ev) => {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  const status = $("ocr-status");
+  status.textContent = "Reading the photo…";
+  const body = new FormData();
+  body.append("image", file);
+  const res = await fetch("/api/ocr", { method: "POST", body, credentials: "same-origin" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    status.textContent = data.detail || "Could not read that photo.";
+    toast(status.textContent);
+    return;
+  }
+  $("checkin-text").value = data.raw_list || data.text || "";
+  const n = (data.apps || []).length;
+  status.textContent = n
+    ? `Read ${n} app${n === 1 ? "" : "s"} from the photo. Check the list, then file.`
+    : "Got text from the photo. Edit the list if a name looks wrong, then file.";
+  toast("Photo converted to a Screen Time list.");
 });
 
 $("event-form").all_day.addEventListener("change", () => {

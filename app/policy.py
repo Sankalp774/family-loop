@@ -69,13 +69,21 @@ def policy_from_answers(answers: dict[str, Any], child: dict[str, Any]) -> dict[
         base["sports_phone_preset"] = bool(answers["sports_phone_preset"])
     if answers.get("daily_cap_minutes"):
         base["daily_cap_minutes"] = int(answers["daily_cap_minutes"])
-    if answers.get("approved_apps"):
-        extra = [str(item) for item in answers["approved_apps"]]
-        merged = list(base["approved_apps"])
-        for app in extra:
-            if app not in merged:
-                merged.append(app)
-        base["approved_apps"] = merged
+    if "approved_apps" in answers and answers["approved_apps"] is not None:
+        apps = [str(item).strip() for item in answers["approved_apps"] if str(item).strip()]
+        if apps:
+            base["approved_apps"] = apps
+    if answers.get("sports_days") is not None:
+        base["sports_days"] = [int(d) for d in answers["sports_days"]]
+    sports_hours = answers.get("sports_hours") or {}
+    if sports_hours.get("start"):
+        base["sports_hours"]["start"] = sports_hours["start"]
+    if sports_hours.get("end"):
+        base["sports_hours"]["end"] = sports_hours["end"]
+    if answers.get("homework_done_after"):
+        base["homework_done_after"] = answers["homework_done_after"]
+    if answers.get("child_name"):
+        base["child_name"] = answers["child_name"]
     if answers.get("notes"):
         base["notes"] = answers["notes"]
     else:

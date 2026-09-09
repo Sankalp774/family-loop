@@ -4,7 +4,7 @@ import calendar as cal
 from datetime import date, timedelta
 from typing import Any
 
-from app.clock import now
+from app.clock import live_now, now
 from app.config import KIND_CHOICES
 from app.events import COLOR, calendar_meta, expand_events
 from app.policy import default_policy
@@ -21,7 +21,7 @@ WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 def family_calendar(state: dict[str, Any], year: int | None = None, month: int | None = None) -> dict[str, Any]:
-    current = now()
+    current = live_now()
     today = current.date()
     year = year or today.year
     month = month or today.month

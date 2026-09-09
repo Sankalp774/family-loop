@@ -43,6 +43,14 @@ def test_sports_phone_preset_allows_maps():
     assert verdict["action"] == "allow"
 
 
+def test_snapshot_reads_hours_from_ocr_style_list():
+    apps = parse_app_list("YouTube\n1h 12m\nWhatsApp 45m\nDiscord 30")
+    by_name = {a["name"]: a["minutes"] for a in apps}
+    assert by_name["YouTube"] == 72
+    assert by_name["WhatsApp"] == 45
+    assert by_name["Discord"] == 30
+
+
 def test_snapshot_flags_discord():
     state = empty_state()
     state["policy"] = policy_from_answers({}, state["child"])

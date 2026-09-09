@@ -9,11 +9,17 @@ from app import store as storemod
 TZ = ZoneInfo(TZ_NAME)
 
 
+def live_now() -> datetime:
+    """Wall clock. The family calendar always uses this so demo Saturday/Sunday
+    buttons cannot cross out a live day such as 11 Sep."""
+    return datetime.now(TZ)
+
+
 def now() -> datetime:
     raw = storemod.get_store().clock_override()
     if raw:
         return datetime.fromisoformat(raw).astimezone(TZ)
-    return datetime.now(TZ)
+    return live_now()
 
 
 def iso(dt: datetime | None = None) -> str:

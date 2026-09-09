@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated, Any, Optional
 
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
+from fastapi import Cookie, Depends, FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -10,10 +11,15 @@ from pydantic import BaseModel, Field
 from app.agents.desk import run_desk
 from app.agents.model import model_label
 from app.auth import clear_session, current_user, login, require_parent, start_session
+from app.clock import clear_override, iso
 from app.clock import set_override as set_clock
 from app.clock import this_saturday_morning, this_sunday_evening
+from app.ocr import image_to_text
+from app.snapshots import parse_app_list
+from app.ids import new_id
 from app.calendar import family_calendar
 from app.config import ASK_FIRST_CHOICES, HARD_NO_CHOICES, KIND_CHOICES, LOCK_ITEMS, PARENT_NOTE_DEFAULT, ROOT
+from app.policy import policy_from_answers
 from app.seed import seed
 from app.store import get_store
 from app.events import add_event, calendar_meta, delete_event, patch_event
@@ -47,6 +53,29 @@ class SetupBody(BaseModel):
     sports_phone_preset: bool = True
     daily_cap_minutes: int = 120
     notes: str = PARENT_NOTE_DEFAULT
+    approved_apps: list[str] | None = None
+    sports_days: list[int] | None = None
+    sports_hours: dict[str, str] | None = None
+    homework_done_after: str | None = None
+    child_name: str | None = None
+
+
+class FamilyBody(BaseModel):
+    parent_name: str | None = None
+    child_name: str | None = None
+    city: str | None = None
+
+
+class AskPatch(BaseModel):
+    status: str | None = None
+    parent_note: str | None = None
+    subject: str | None = None
+    detail: str | None = None
+
+
+class OutboxBody(BaseModel):
+    body: str
+    channel: str = "whatsapp"
 
 
 class LocksBody(BaseModel):
@@ -206,8 +235,37 @@ def api_state(user: Annotated[dict, Depends(current_user)]) -> dict:
 @app.post("/api/setup")
 def api_setup(body: SetupBody, user: Annotated[dict, Depends(current_user)]) -> dict:
     require_parent(user)
-    result = run_desk("setup", body.model_dump())
+    payload = body.model_dump(exclude_none=True)
+    result = run_desk("setup", payload)
+
+    def overlay(data):
+        answers = {**(data.get("policy") or {}), **payload}
+        data["policy"] = policy_from_answers(answers, data.get("child") or {})
+        if payload.get("child_name"):
+            data.setdefault("child", {})["name"] = payload["child_name"]
+            data["policy"]["child_name"] = payload["child_name"]
+
+    get_store().update(overlay)
     return {"agent": _agent_public(result), "state": public_state(get_store().snapshot(), "parent")}
+
+
+@app.patch("/api/family")
+def api_family(body: FamilyBody, user: Annotated[dict, Depends(current_user)]) -> dict:
+    require_parent(user)
+
+    def mutate(data):
+        if body.parent_name:
+            data.setdefault("parent", {})["name"] = body.parent_name.strip()
+        if body.child_name:
+            name = body.child_name.strip()
+            data.setdefault("child", {})["name"] = name
+            if data.get("policy"):
+                data["policy"]["child_name"] = name
+        if body.city:
+            data.setdefault("child", {})["city"] = body.city.strip()
+
+    get_store().update(mutate)
+    return {"state": public_state(get_store().snapshot(), "parent")}
 
 
 @app.post("/api/locks")
@@ -241,6 +299,61 @@ def api_decide(
     return {"agent": _agent_public(result), "state": public_state(get_store().snapshot(), "parent")}
 
 
+@app.patch("/api/asks/{request_id}")
+def api_ask_patch(
+    request_id: str, body: AskPatch, user: Annotated[dict, Depends(current_user)]
+) -> dict:
+    require_parent(user)
+    found = {"ok": False}
+
+    def mutate(data):
+        for req in data.get("requests") or []:
+            if req.get("id") != request_id:
+                continue
+            if body.subject is not None:
+                req["subject"] = body.subject.strip()
+            if body.detail is not None:
+                req["detail"] = body.detail.strip()
+            if body.parent_note is not None:
+                req["parent_note"] = body.parent_note.strip()
+            if body.status in {"pending", "allowed", "denied"}:
+                req["status"] = body.status
+                if body.status != "pending":
+                    req["decided_at"] = iso()
+                    req["decided_by"] = "parent"
+            found["ok"] = True
+            break
+
+    get_store().update(mutate)
+    if not found["ok"]:
+        raise HTTPException(status_code=404, detail="Ask not found.")
+    if body.status in {"allowed", "denied"}:
+        run_desk("decide", {"request_id": request_id, "status": body.status, "note": body.parent_note or ""})
+    return {"state": public_state(get_store().snapshot(), "parent")}
+
+
+@app.post("/api/outbox")
+def api_outbox(body: OutboxBody, user: Annotated[dict, Depends(current_user)]) -> dict:
+    require_parent(user)
+    message = {
+        "id": new_id("msg"),
+        "channel": body.channel,
+        "at": iso(),
+        "to": "Meera",
+        "from": "Family Loop",
+        "body": body.body.strip(),
+        "simulated": True,
+        "label": "Simulated WhatsApp" if body.channel == "whatsapp" else "Simulated email",
+        "edited_by": "parent",
+    }
+
+    def mutate(data):
+        data.setdefault("outbox", []).append(message)
+
+    get_store().update(mutate)
+    return {"message": message, "state": public_state(get_store().snapshot(), "parent")}
+
+
 @app.post("/api/ping")
 def api_ping(user: Annotated[dict, Depends(current_user)]) -> dict:
     require_parent(user)
@@ -256,6 +369,30 @@ def api_checkin(body: SnapshotBody, user: Annotated[dict, Depends(current_user)]
     return {
         "agent": _agent_public(result),
         "state": public_state(get_store().snapshot(), user["role"]),
+    }
+
+
+@app.post("/api/ocr")
+async def api_ocr(
+    user: Annotated[dict, Depends(current_user)],
+    image: UploadFile = File(...),
+) -> dict:
+    data = await image.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty photo.")
+    suffix = Path(image.filename or "shot.png").suffix or ".png"
+    try:
+        text = image_to_text(data, suffix)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    apps = parse_app_list(text)
+    raw_list = "\n".join(f"{app['name']} {app['minutes']}" for app in apps) or text
+    return {
+        "text": text,
+        "apps": apps,
+        "raw_list": raw_list,
+        "source": "photo_ocr",
+        "disclaimer": "Read from a human photo. We do not control the device.",
     }
 
 
@@ -356,6 +493,13 @@ def api_sunday(user: Annotated[dict, Depends(current_user)]) -> dict:
     require_parent(user)
     stamp = set_clock(this_sunday_evening())
     return {"clock": stamp, "state": public_state(get_store().snapshot(), "parent")}
+
+
+@app.post("/api/demo/live")
+def api_live(user: Annotated[dict, Depends(current_user)]) -> dict:
+    require_parent(user)
+    clear_override()
+    return {"clock": None, "state": public_state(get_store().snapshot(), "parent")}
 
 
 def _agent_public(result: dict) -> dict:
