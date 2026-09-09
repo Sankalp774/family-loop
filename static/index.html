@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Family Loop — the desk, not the lock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Karla:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="top">
+    <div class="brand">
+      <span class="mark">FL</span>
+      <div>
+        <strong>Family Loop</strong>
+        <em>the desk, not the lock</em>
+      </div>
+    </div>
+    <p class="stamp">We do not control the device.</p>
+    <div class="top-meta" id="top-meta" hidden>
+      <span id="who"></span>
+      <span id="clock-label"></span>
+      <span id="model-label"></span>
+      <button type="button" class="text-btn" id="logout">Leave</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="doors" class="doors">
+      <p class="kicker">Everyday Agents · one family in Bengaluru</p>
+      <h1>Phones enforce.<br />Agents remind, compare, and ask.</h1>
+      <p class="lede">
+        Meera should not live in Screen Time. Aarav’s phone already has a lock.
+        Family Loop is the inbox that only knocks when someone has to say yes or no.
+      </p>
+      <div class="door-row">
+        <button type="button" class="door parent" data-role="parent">
+          <span class="door-kicker">Parent door</span>
+          <strong>Meera</strong>
+          <span>House rules in plain words, queue, ping, Sunday.</span>
+          <code>meera@familyloop.demo / parent</code>
+        </button>
+        <button type="button" class="door child" data-role="child">
+          <span class="door-kicker">Child door</span>
+          <strong>Aarav</strong>
+          <span>Asks + Screen Time pastes. Cannot change rules.</span>
+          <code>aarav@familyloop.demo / aarav</code>
+        </button>
+      </div>
+      <p class="foot-note">OS enforcement stays on the phone. This site is an inbox.</p>
+    </section>
+
+    <section id="parent" class="desk" hidden>
+      <div class="desk-grid">
+        <article class="panel clipboard">
+          <h2>House rules</h2>
+          <p class="hint">Everyday words. You are not writing code. The desk turns this into a policy for the agents.</p>
+          <div class="policy-card" id="policy-card"></div>
+          <form id="setup-form">
+            <label>How old is Aarav? <input name="age" type="number" min="6" max="17" value="13" /></label>
+            <div class="pair">
+              <label>School starts <input name="school_start" type="time" value="08:00" /></label>
+              <label>School ends <input name="school_end" type="time" value="15:00" /></label>
+            </div>
+            <fieldset>
+              <legend>Ask me first</legend>
+              <p class="tiny">Tap what should wait for a yes from you.</p>
+              <div class="chips" id="ask-first"></div>
+            </fieldset>
+            <fieldset>
+              <legend>Never allowed</legend>
+              <p class="tiny">These are a no without asking.</p>
+              <div class="chips" id="hard-no"></div>
+            </fieldset>
+            <label class="check"><input name="youtube_after_homework" type="checkbox" checked /> YouTube only after homework (after 5pm)</label>
+            <label class="check"><input name="sports_phone_preset" type="checkbox" checked /> Sports phone: Maps and Phone during practice</label>
+            <label>Daily cap (minutes) <input name="daily_cap_minutes" type="number" value="120" /></label>
+            <label>Your note (plain language)
+              <textarea name="notes" id="parent-notes" rows="3"></textarea>
+            </label>
+            <button type="submit" class="primary">Save house rules</button>
+          </form>
+        </article>
+
+        <article class="panel locks">
+          <h2>Phone locks</h2>
+          <p class="hint">Tick what the phone is already doing. Unchecked → Sunday Red. We do not flip the OS.</p>
+          <form id="locks-form"></form>
+          <p class="locks-status" id="locks-status"></p>
+        </article>
+
+        <article class="panel inbox">
+          <h2>Needs a yes or no</h2>
+          <p class="hint">You only see this when the desk cannot file it alone.</p>
+          <div id="inbox-list" class="stack"></div>
+        </article>
+
+        <article class="panel sunday">
+          <h2>Sunday envelope</h2>
+          <p class="hint">Yellow Saturday is submission. Green Sunday is evaluation. Buttons stand in for the clock.</p>
+          <div class="demo-rail">
+            <button type="button" data-demo="saturday">It’s Saturday</button>
+            <button type="button" data-demo="ping">Simulate random ask</button>
+            <button type="button" data-demo="sunday">It’s Sunday</button>
+            <button type="button" class="primary" data-demo="digest">Run Sunday digest</button>
+          </div>
+          <div id="digest-board" class="digest-board"></div>
+          <div class="wa" id="wa-thread">
+            <header>Simulated WhatsApp · not a vendor send</header>
+            <div id="wa-body" class="wa-body">No letter in the outbox yet.</div>
+          </div>
+        </article>
+      </div>
+      <aside class="tape">
+        <div class="tape-head">
+          <h2>Desk tape</h2>
+          <div class="tiny-actions">
+            <button type="button" data-demo="reset">Reset demo</button>
+            <button type="button" data-demo="week">Seed a quiet week</button>
+          </div>
+        </div>
+        <ol id="agent-log"></ol>
+      </aside>
+      <div id="parent-calendar" class="cal-wrap"></div>
+    </section>
+
+    <section id="child" class="child-home" hidden>
+      <div id="child-banner" class="banner" hidden></div>
+      <div class="child-grid">
+        <article class="panel">
+          <h2>Ask first</h2>
+          <p class="hint">Install, site, extra time, or a new in-app friend. Typed, not scraped.</p>
+          <div id="ask-forms"></div>
+          <button type="button" class="add-more" id="add-request">
+            <span class="plus">+</span>
+            add more request
+          </button>
+          <div id="child-asks" class="stack"></div>
+        </article>
+        <article class="panel">
+          <h2>Screen Time paste</h2>
+          <p class="hint">Family Loop cannot see the phone. Paste the list from Screen Time / Digital Wellbeing. Saturday is the yellow submission day.</p>
+          <form id="checkin-form">
+            <textarea name="raw_list" rows="8" placeholder="YouTube 45&#10;WhatsApp 20&#10;Google Classroom 15"></textarea>
+            <button type="submit" class="primary child-btn">File snapshot</button>
+          </form>
+          <p class="tiny">Source is always labelled human paste. There is no live install spy.</p>
+        </article>
+      </div>
+      <div id="child-calendar" class="cal-wrap"></div>
+    </section>
+  </main>
+
+  <template id="ask-form-template">
+    <form class="ask-form card">
+      <label>Kind
+        <select name="kind">
+          <option value="visit_site">Visit a site</option>
+          <option value="install_app">Install an app</option>
+          <option value="extra_time">Extra time</option>
+          <option value="new_contact">New in-app friend</option>
+        </select>
+      </label>
+      <label>What <input name="subject" placeholder="Reddit" required /></label>
+      <label>Why <textarea name="detail" rows="2" placeholder="Want to read r/learnpython"></textarea></label>
+      <label class="check"><input name="costs_money" type="checkbox" /> This costs money</label>
+      <div class="row-actions">
+        <button type="submit" class="primary child-btn">Send to the desk</button>
+        <button type="button" class="remove-ask text-btn">Remove</button>
+      </div>
+    </form>
+  </template>
+
+  <div id="event-editor" class="modal" hidden>
+    <form class="modal-card" id="event-form">
+      <header>
+        <h2 id="event-form-title">New event</h2>
+        <button type="button" class="text-btn" id="event-cancel" aria-label="Close">×</button>
+      </header>
+      <label>Title <input name="title" required maxlength="140" placeholder="e.g. PTM, cricket, dentist" /></label>
+      <div class="pair">
+        <label>Date <input name="date" type="date" required /></label>
+        <label>Until (optional) <input name="end_date" type="date" /></label>
+      </div>
+      <label class="check"><input name="all_day" type="checkbox" /> All day</label>
+      <div class="pair" id="event-times">
+        <label>Starts <input name="start_time" type="time" value="16:30" /></label>
+        <label>Ends <input name="end_time" type="time" value="17:30" /></label>
+      </div>
+      <div class="pair">
+        <label>Calendar
+          <select name="calendar">
+            <option value="family">Family</option>
+            <option value="important">Important</option>
+            <option value="school">School</option>
+            <option value="sports">Sports</option>
+            <option value="screen">Screen Time</option>
+            <option value="personal">Personal</option>
+          </select>
+        </label>
+        <label>Who
+          <select name="who">
+            <option value="family">Whole family</option>
+            <option value="parent">Parent</option>
+            <option value="child">Child</option>
+          </select>
+        </label>
+      </div>
+      <div class="pair">
+        <label>Repeat
+          <select name="repeat">
+            <option value="none">Does not repeat</option>
+            <option value="weekly">Every week</option>
+            <option value="monthly">Every month</option>
+          </select>
+        </label>
+        <label>Repeat until <input name="repeat_until" type="date" /></label>
+      </div>
+      <label>Where <input name="location" maxlength="120" placeholder="Optional" /></label>
+      <label>Notes <textarea name="notes" rows="2" placeholder="Anything the other person should know"></textarea></label>
+      <label class="check"><input name="important" type="checkbox" /> Mark as important</label>
+      <div class="row-actions">
+        <button type="submit" class="primary">Save event</button>
+        <button type="button" id="event-delete" class="danger" hidden>Delete</button>
+      </div>
+    </form>
+  </div>
+  <div id="toast" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

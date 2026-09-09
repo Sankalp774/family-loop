@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+data/family.json
+data/family.json.tmp
+data/sessions/
+*.egg-info/
+.DS_Store
+.coverage
+htmlcov/
