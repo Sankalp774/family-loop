@@ -120,6 +120,15 @@ def family_state(state: dict[str, Any]) -> dict[str, Any]:
             "pending": waiting,
         },
         "locks_complete": locks_complete(state.get("locks") or {}),
+        "attention": {
+            "urgent": exceptions,
+            "decisions": waiting,
+            "informational": max(received, 0) + len(state.get("digests") or []),
+            "line": (
+                f"{exceptions} urgent · {waiting} decision · "
+                f"{max(received, 0) + len(state.get('digests') or [])} informational"
+            ),
+        },
     }
 
 

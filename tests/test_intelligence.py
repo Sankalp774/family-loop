@@ -34,6 +34,8 @@ def test_family_state_flags_waiting_and_discord():
     titles = [i["title"] for i in cmd["needs_you"]]
     assert "Discord" in titles
     assert "Reddit" in titles
+    assert cmd["attention"]["urgent"] == 1
+    assert cmd["attention"]["decisions"] == 1
 
 
 def test_timeline_and_what_changed_are_visible_memory():

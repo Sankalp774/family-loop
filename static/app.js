@@ -484,10 +484,11 @@ function renderCommand(s) {
     </header>
     <div class="status-strip tone-${cmd.health_tone || "green"}">
       <div><span>Family status</span><strong>${escapeHtml(cmd.health_label || "Stable")}</strong></div>
-      <div><span>Decisions waiting</span><strong>${waiting}</strong></div>
-      <div><span>Exceptions</span><strong>${cmd.exceptions || 0}</strong></div>
-      <div><span>Days until Sunday</span><strong>${cmd.days_until_review ?? "—"}</strong></div>
+      <div><span>Urgent</span><strong>${cmd.attention?.urgent ?? 0}</strong></div>
+      <div><span>Decisions</span><strong>${cmd.attention?.decisions ?? waiting}</strong></div>
+      <div><span>Informational</span><strong>${cmd.attention?.informational ?? 0}</strong></div>
     </div>
+    <p class="tiny attention-line">Meera’s attention — agents only knock when someone has to say yes or no. ${escapeHtml(cmd.attention?.line || "")}</p>
     <div class="os-grid">
       <article class="panel">
         <h2>Needs you</h2>
