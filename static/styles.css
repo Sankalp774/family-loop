@@ -194,6 +194,24 @@ h1 {
 .eval-steps li { padding: 0.28rem 0 0.28rem 1.2rem; position: relative; font-size: 0.88rem; }
 .eval-steps li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 700; }
 
+.os-pane { display: block; min-height: 8rem; }
+.os-pane[hidden],
+#doors[hidden],
+#parent[hidden],
+#child[hidden],
+#toast[hidden] { display: none !important; }
+.save-proof {
+  grid-column: 1 / -1;
+  margin: 0.2rem 0 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: var(--green-bg);
+  color: var(--green);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.save-proof.flash { background: #d8efe3; }
+
 .desk, .child-home { padding: 1.25rem 1.5rem 3rem; }
 .desk-grid {
   display: grid;

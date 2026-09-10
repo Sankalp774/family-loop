@@ -383,8 +383,17 @@ function render() {
   $("clock-label").textContent = state.data?.clock ? `demo clock ${state.data.clock.slice(0, 16)}` : "live clock";
   $("model-label").textContent = state.model || "";
   show(state.user.role === "parent" ? "parent" : "child");
-  if (state.user.role === "parent") renderParent();
-  else renderChild();
+  try {
+    if (state.user.role === "parent") renderParent();
+    else renderChild();
+  } catch (err) {
+    console.error(err);
+    toast(err.message || "The parent desk hit an error.");
+    const home = $("pane-home");
+    if (home && !home.innerHTML.trim()) {
+      home.innerHTML = `<article class="panel"><h2>Family Loop</h2><p>${escapeHtml(err.message)}</p></article>`;
+    }
+  }
 }
 
 function fillSetupForm(s) {
@@ -425,18 +434,33 @@ function fillSetupForm(s) {
     family.child_name.value = s.child?.name || "Aarav";
     family.city.value = s.child?.city || "Bengaluru";
   }
+  const proof = $("family-proof");
+  if (proof) {
+    const parent = s.parent?.name || "Meera";
+    const child = s.child?.name || "Aarav";
+    const city = s.child?.city || "Bengaluru";
+    proof.textContent = `On file: ${parent} · ${child} · ${city}`;
+  }
 }
 
-function setParentPane(name) {
-  state.parentPane = name;
+function setParentPane(name, opts = {}) {
+  state.parentPane = name || "home";
   ["home", "decisions", "timeline", "calendar", "memory", "desk"].forEach((pane) => {
     const el = $(`pane-${pane}`);
-    if (el) el.hidden = pane !== name;
+    if (!el) return;
+    if (pane === state.parentPane) el.removeAttribute("hidden");
+    else el.setAttribute("hidden", "");
   });
   document.querySelectorAll("#parent-nav [data-pane]").forEach((btn) => {
-    btn.classList.toggle("on", btn.dataset.pane === name);
+    btn.classList.toggle("on", btn.dataset.pane === state.parentPane);
   });
-  if (name === "calendar") renderCalendar($("parent-calendar"), state.data?.calendar, "parent");
+  if (state.parentPane === "calendar") {
+    renderCalendar($("parent-calendar"), state.data?.calendar, "parent");
+  }
+  if (opts.scroll) {
+    const pane = $(`pane-${state.parentPane}`);
+    if (pane) pane.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
 }
 
 function decisionCard(item) {
@@ -599,6 +623,7 @@ function renderParent() {
   fillSetupForm(s);
   renderPolicyCard(s.policy_card);
   const form = $("locks-form");
+  if (!form) return;
   form.innerHTML = "";
   (s.lock_items || []).forEach((item) => {
     const label = document.createElement("label");
@@ -611,14 +636,17 @@ function renderParent() {
   save.className = "btn-sky";
   save.textContent = "Save checklist";
   form.appendChild(save);
-  $("locks-status").textContent = s.locks_complete
-    ? `Locks claimed on ${s.locks?.locks_claimed_on || "today"}. Detection is only as strong as this list.`
-    : "Locks not finished. Sunday will go Red: detection is weak.";
+  const locksStatus = $("locks-status");
+  if (locksStatus) {
+    locksStatus.textContent = s.locks_complete
+      ? `Locks claimed on ${s.locks?.locks_claimed_on || "today"}. Detection is only as strong as this list.`
+      : "Locks not finished. Sunday will go Red: detection is weak.";
+  }
 
   const inbox = $("inbox-list");
   const rows = s.requests || [];
-  inbox.innerHTML = rows.length ? "" : "<p class='muted'>Inbox empty. File an ask above, or wait for Aarav.</p>";
-  rows.slice().reverse().forEach((req) => {
+  if (inbox) inbox.innerHTML = rows.length ? "" : "<p class='muted'>Inbox empty. File an ask above, or wait for Aarav.</p>";
+  (inbox ? rows.slice().reverse() : []).forEach((req) => {
     const card = document.createElement("div");
     card.className = "card inbox-card";
     card.innerHTML = `<h3>${escapeHtml(kindLabel(req.kind))} · ${escapeHtml(req.status)}</h3>
@@ -637,9 +665,9 @@ function renderParent() {
 
   const digest = s.latest_digest;
   const board = $("digest-board");
-  if (!digest || !digest.red) {
+  if (board && (!digest || !digest.red)) {
     board.innerHTML = "<p class='muted'>Sunday has not run this week.</p>";
-  } else {
+  } else if (board) {
     board.innerHTML = ["red", "needs_you", "green"].map((key, i) => {
       const title = ["Red", "Needs you", "Green"][i];
       const cls = ["red", "needs", "green"][i];
@@ -657,9 +685,12 @@ function renderParent() {
   }
 
   const log = $("agent-log");
-  log.innerHTML = (s.agent_log || []).slice().reverse().map((row) =>
-    `<li><strong>${escapeHtml(row.at || "")}</strong> · ${escapeHtml(row.agent || "")} / ${escapeHtml(row.event || row.tool || "")}<br/>${escapeHtml(row.summary || "")}</li>`
-  ).join("") || "<li>Desk is quiet.</li>";
+  if (log) {
+    const lines = (s.agent_log || []).slice().reverse().map((row) => {
+      return `<li><strong>${escapeHtml(row.at || "")}</strong> · ${escapeHtml(row.agent || "")} / ${escapeHtml(row.event || row.tool || "")}<br/>${escapeHtml(row.summary || "")}</li>`;
+    });
+    log.innerHTML = lines.join("") || "<li>Desk is quiet.</li>";
+  }
 }
 
 function kindLabel(kind) {
@@ -913,6 +944,12 @@ async function handleDeskClick(ev) {
 }
 
 document.addEventListener("click", (ev) => {
+  const paneBtn = ev.target.closest("#parent-nav [data-pane]");
+  if (paneBtn) {
+    ev.preventDefault();
+    setParentPane(paneBtn.dataset.pane, { scroll: true });
+    return;
+  }
   if (ev.target.closest("[data-demo], [data-allow], [data-deny], [data-pending], [data-save-ask]")) {
     handleDeskClick(ev).catch((err) => toast(err.message));
   }
@@ -930,7 +967,16 @@ $("family-form").addEventListener("submit", async (ev) => {
     }),
   });
   state.data = data.state;
-  toast("Family details saved.");
+  const parent = data.state.parent?.name || fd.get("parent_name");
+  const child = data.state.child?.name || fd.get("child_name");
+  const city = data.state.child?.city || fd.get("city");
+  const proof = $("family-proof");
+  if (proof) {
+    proof.textContent = `Saved just now: ${parent} · ${child} · ${city}`;
+    proof.classList.add("flash");
+  }
+  toast(`Saved: ${parent}, ${child}, ${city}`);
+  state.parentPane = "memory";
   render();
 });
 
@@ -984,8 +1030,11 @@ $("locks-form").addEventListener("change", () => {
   $("locks-form").requestSubmit();
 });
 
-document.querySelectorAll("#parent-nav [data-pane]").forEach((btn) => {
-  btn.addEventListener("click", () => setParentPane(btn.dataset.pane));
+$("parent-nav")?.addEventListener("click", (ev) => {
+  const btn = ev.target.closest("[data-pane]");
+  if (!btn) return;
+  ev.preventDefault();
+  setParentPane(btn.dataset.pane, { scroll: true });
 });
 
 $("checkin-form").addEventListener("submit", async (ev) => {
