@@ -454,6 +454,22 @@ function decisionCard(item) {
   </article>`;
 }
 
+function shortTrace(row) {
+  const event = String(row.event || "");
+  const map = {
+    setup: "Policy saved",
+    locks: "Locks checklist saved",
+    new_ask: "Request history retrieved · ask filed",
+    ping: "Check-in requested",
+    snapshot: "Snapshot compared to approved apps",
+    sunday: "Sunday digest filed",
+    digest: "Sunday digest filed",
+    decide: "Parent decision recorded",
+    tool: "Tool completed",
+  };
+  return map[event] || `${row.agent || "Family desk"} · ${event}`;
+}
+
 function renderCommand(s) {
   const cmd = s.command || {};
   const child = cmd.child || {};
@@ -475,12 +491,23 @@ function renderCommand(s) {
   const sim = (state.simSteps || []).map((step) => `<li><span>${escapeHtml(step.at)}</span> ${escapeHtml(step.text)}</li>`).join("");
   const digest = s.latest_digest || {};
   const changed = digest.what_changed || s.what_changed || {};
-  const steps = (digest.steps || []).map((line) => `<li>✓ ${escapeHtml(line)}</li>`).join("");
+  const evalSteps = (digest.steps || [
+    "Policy loaded",
+    "7-day history loaded",
+    "Latest snapshot loaded",
+    "Snapshot compared",
+    "Missed pings checked",
+    "Pending decisions checked",
+    "Exceptions classified",
+    "Family state updated",
+    "Digest filed",
+  ]).slice(0, 9);
+  const showEval = Boolean(digest.id || digest.steps);
   $("pane-home").innerHTML = `
     <header class="os-hello">
       <p class="kicker">Family Loop · ${new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</p>
-      <h2>Good day, ${escapeHtml(parentName)}</h2>
-      <p class="lede">${escapeHtml(cmd.headline || "The desk is quiet.")}</p>
+      <h2>${escapeHtml(parentName)}</h2>
+      <p class="lede">${escapeHtml(cmd.headline || "Nothing urgent today.")}</p>
     </header>
     <div class="status-strip tone-${cmd.health_tone || "green"}">
       <div><span>Family status</span><strong>${escapeHtml(cmd.health_label || "Stable")}</strong></div>
@@ -488,7 +515,7 @@ function renderCommand(s) {
       <div><span>Decisions</span><strong>${cmd.attention?.decisions ?? waiting}</strong></div>
       <div><span>Informational</span><strong>${cmd.attention?.informational ?? 0}</strong></div>
     </div>
-    <p class="tiny attention-line">Meera’s attention — agents only knock when someone has to say yes or no. ${escapeHtml(cmd.attention?.line || "")}</p>
+    <p class="tiny attention-line">Agents only knock when someone has to say yes or no.</p>
     <div class="os-grid">
       <article class="panel">
         <h2>Needs you</h2>
@@ -499,35 +526,38 @@ function renderCommand(s) {
         <ul class="plan-list today-list">${today || "<li>Nothing on the calendar.</li>"}</ul>
         <h2 class="week-h">This week</h2>
         <ul class="stats">
-          <li>Screen-time adherence <b>${child.adherence ?? "—"}%</b></li>
           <li>Check-ins <b>${escapeHtml(cmd.week?.checkins || "—")}</b></li>
+          <li>Adherence <b>${child.adherence ?? "—"}%</b></li>
           <li>New apps <b>${cmd.week?.new_apps ?? 0}</b></li>
           <li>Pending decisions <b>${waiting}</b></li>
         </ul>
       </article>
     </div>
-    ${patterns ? `<article class="panel"><h2>Family Loop noticed a pattern</h2>${patterns}</article>` : ""}
+    ${changed.summary ? `<article class="panel">
+      <h2>What changed</h2>
+      <ul class="stats">
+        <li>Screen time <b>${changed.screen_delta > 0 ? "+" : ""}${changed.screen_delta ?? 0}%</b></li>
+        <li>New requests <b>${changed.new_requests ?? 0}</b></li>
+        <li>Still waiting <b>${changed.still_waiting ?? 0}</b></li>
+      </ul>
+      <p>${escapeHtml(changed.summary)}</p>
+    </article>` : ""}
+    ${showEval ? `<article class="panel eval-panel">
+      <p class="kicker">Sunday evaluation · Family Desk → Digest writer</p>
+      <ol class="eval-steps">${evalSteps.map((line) => `<li>${escapeHtml(line.replace(/^✓\s*/, ""))}</li>`).join("")}</ol>
+    </article>` : ""}
     <article class="panel">
-      <h2>Agent activity</h2>
-      <ol class="trace-list">${(s.trace || []).slice(0, 8).map((row) =>
-        `<li><b>${escapeHtml(row.agent)}</b> · ${escapeHtml(row.event)}<br/>${escapeHtml(row.summary)}</li>`
-      ).join("") || "<li>Desk is quiet.</li>"}</ol>
+      <h2>Family desk</h2>
+      <ol class="trace-list">${(s.trace || []).slice(0, 6).map((row) =>
+        `<li>${escapeHtml(shortTrace(row))}</li>`
+      ).join("") || "<li>No tool activity yet.</li>"}</ol>
     </article>
+    ${patterns ? `<article class="panel"><h2>Pattern</h2>${patterns}</article>` : ""}
     <div class="demo-rail">
       <button type="button" class="btn-sun" data-demo="simulate-saturday">Run Saturday simulation</button>
       <button type="button" class="btn-primary" data-demo="fast-forward">Fast-forward family</button>
     </div>
     ${sim ? `<article class="panel"><h2>Simulation</h2><ol class="sim-list">${sim}</ol></article>` : ""}
-    ${changed.summary ? `<article class="panel"><h2>What changed this week</h2>
-      <ul class="stats">
-        <li>Screen time <b>${changed.screen_delta > 0 ? "+" : ""}${changed.screen_delta}%</b></li>
-        <li>New requests <b>${changed.new_requests}</b></li>
-        <li>Resolved <b>${changed.resolved}</b></li>
-        <li>Still waiting <b>${changed.still_waiting}</b></li>
-      </ul>
-      <p>${escapeHtml(changed.summary)}</p>
-      ${steps ? `<ol class="trace-list">${steps}</ol>` : ""}
-    </article>` : ""}
   `;
   $("pane-decisions").innerHTML = `
     <h2>${waiting} need you</h2>

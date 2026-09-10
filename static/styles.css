@@ -189,6 +189,10 @@ h1 {
 .time-day li { padding: 0.45rem 0.55rem; border-radius: 8px; background: #fff; border: 1px solid var(--rule); margin-bottom: 0.35rem; list-style: none; }
 .time-day ul { padding: 0; }
 .today-list span { display: inline-block; width: 3.4rem; color: var(--muted); }
+.eval-panel { border-left: 3px solid var(--brand); }
+.eval-steps { list-style: none; margin: 0.4rem 0 0; padding: 0; }
+.eval-steps li { padding: 0.28rem 0 0.28rem 1.2rem; position: relative; font-size: 0.88rem; }
+.eval-steps li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 700; }
 
 .desk, .child-home { padding: 1.25rem 1.5rem 3rem; }
 .desk-grid {
