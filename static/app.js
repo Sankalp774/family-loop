@@ -30,6 +30,8 @@ const state = {
   calView: "month",
   calHidden: new Set(),
   editingEvent: null,
+  parentPane: "home",
+  simSteps: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -53,16 +55,28 @@ function toast(msg) {
   toast._t = setTimeout(() => { el.hidden = true; }, 3200);
 }
 
-function chips(container, options, selected) {
+function chipTone(label, key) {
+  const t = `${label || ""} ${key || ""}`.toLowerCase();
+  if (/(social|whatsapp|youtube|instagram|discord|reddit|tiktok|snap|dating|telegram|friend|contact|facebook|twitter)/.test(t)) return "social";
+  if (/(khan|classroom|school|homework|educat|academy|learn|class)/.test(t)) return "edu";
+  if (/(game|roblox|minecraft|fortnite|xbox|steam|play)/.test(t)) return "game";
+  if (/(money|purchase|gambling|robux|cost|buy|gift|₹)/.test(t)) return "misc";
+  if (/(map|phone|extra|new.app|cap|call|new_app)/.test(t)) return "other";
+  return "misc";
+}
+
+function chips(container, options, selected, opts = {}) {
   container.innerHTML = "";
   container._options = options;
+  container._tone = opts.tone !== false;
   options.forEach((opt) => {
     const key = String(opt.key || opt);
     const label = opt.label || String(key).replaceAll("_", " ");
     const hint = opt.hint || "";
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "chip" + (selected.has(key) ? " on" : "");
+    const tone = container._tone ? chipTone(label, key) : "";
+    btn.className = `chip ${tone ? "tone-" + tone : ""}` + (selected.has(key) ? " on" : "");
     btn.textContent = label;
     if (hint) btn.title = hint;
     btn.addEventListener("click", () => {
@@ -85,7 +99,7 @@ function addCustomChip(container, label) {
   }
   const selected = container._selected || new Set();
   selected.add(key);
-  chips(container, options, selected);
+  chips(container, options, selected, { tone: container._tone !== false });
 }
 
 function removableChips(container, items) {
@@ -94,7 +108,8 @@ function removableChips(container, items) {
   items.forEach((name, index) => {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "chip on";
+    const tone = chipTone(name, name);
+    btn.className = `chip on tone-${tone}`;
     btn.innerHTML = `${escapeHtml(name)}<span class="x">×</span>`;
     btn.addEventListener("click", () => {
       items.splice(index, 1);
@@ -378,7 +393,7 @@ function fillSetupForm(s) {
   const choices = s.choices || {};
   if (!policy) {
     bindChoices(choices);
-    chips($("sports-days"), DAY_CHIPS, new Set(["1", "3"]));
+    chips($("sports-days"), DAY_CHIPS, new Set(["1", "3"]), { tone: false });
     removableChips($("allowed-apps"), ["YouTube", "WhatsApp", "Khan Academy", "Google Classroom", "Maps", "Phone"]);
     return;
   }
@@ -402,7 +417,7 @@ function fillSetupForm(s) {
   });
   chips($("ask-first"), askOpts, new Set((policy.ask_first || []).map(String)));
   chips($("hard-no"), hardOpts, new Set((policy.hard_no || []).map(String)));
-  chips($("sports-days"), DAY_CHIPS, new Set((policy.sports_days || [1, 3]).map(String)));
+  chips($("sports-days"), DAY_CHIPS, new Set((policy.sports_days || [1, 3]).map(String)), { tone: false });
   removableChips($("allowed-apps"), [...(policy.approved_apps || [])]);
   const family = $("family-form");
   if (family) {
@@ -412,8 +427,143 @@ function fillSetupForm(s) {
   }
 }
 
+function setParentPane(name) {
+  state.parentPane = name;
+  ["home", "decisions", "timeline", "calendar", "memory", "desk"].forEach((pane) => {
+    const el = $(`pane-${pane}`);
+    if (el) el.hidden = pane !== name;
+  });
+  document.querySelectorAll("#parent-nav [data-pane]").forEach((btn) => {
+    btn.classList.toggle("on", btn.dataset.pane === name);
+  });
+  if (name === "calendar") renderCalendar($("parent-calendar"), state.data?.calendar, "parent");
+}
+
+function decisionCard(item) {
+  const id = item.id || "";
+  return `<article class="decision-card tone-${item.tone || "amber"}">
+    <h3>${item.tone === "red" ? "🔴" : "🟡"} ${escapeHtml(item.title || item.subject || "")}</h3>
+    <p>${escapeHtml(item.detail || "")}</p>
+    <p class="why"><strong>Why this matters.</strong> ${escapeHtml(item.why || "")}</p>
+    <p class="tiny">Rule: ${escapeHtml(item.rule || "")}</p>
+    ${id ? `<div class="row-actions">
+      <button type="button" class="btn-allow" data-allow="${id}">Allow</button>
+      ${String(id).startsWith("app:") ? "" : `<button type="button" class="btn-sky" data-pending="${id}">Keep pending</button>`}
+      <button type="button" class="btn-deny" data-deny="${id}">Deny</button>
+    </div>` : ""}
+  </article>`;
+}
+
+function renderCommand(s) {
+  const cmd = s.command || {};
+  const child = cmd.child || {};
+  const parentName = s.parent?.name || "Meera";
+  const waiting = cmd.decisions_waiting || 0;
+  const badge = $("nav-badge");
+  if (badge) badge.textContent = waiting;
+  const today = (cmd.today || []).map((row) => `<li><span>${escapeHtml(row.time)}</span> ${escapeHtml(row.title)}</li>`).join("");
+  const needs = (cmd.needs_you || []).map(decisionCard).join("") || "<p class='muted'>Nothing waiting.</p>";
+  const patterns = (s.patterns || []).map((p) => `<article class="pattern-card">
+    <h3>${escapeHtml(p.title)}</h3>
+    <p>${escapeHtml(p.body)}</p>
+    ${p.request_id ? `<div class="row-actions">
+      <button type="button" class="btn-allow" data-allow="${p.request_id}">Allow</button>
+      <button type="button" class="btn-deny" data-deny="${p.request_id}">Deny</button>
+      <button type="button" class="btn-sky" data-pending="${p.request_id}">Keep pending</button>
+    </div>` : ""}
+  </article>`).join("");
+  const sim = (state.simSteps || []).map((step) => `<li><span>${escapeHtml(step.at)}</span> ${escapeHtml(step.text)}</li>`).join("");
+  const digest = s.latest_digest || {};
+  const changed = digest.what_changed || s.what_changed || {};
+  const steps = (digest.steps || []).map((line) => `<li>✓ ${escapeHtml(line)}</li>`).join("");
+  $("pane-home").innerHTML = `
+    <header class="os-hello">
+      <p class="kicker">Family Loop · ${new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</p>
+      <h2>Good day, ${escapeHtml(parentName)}</h2>
+      <p class="lede">${escapeHtml(cmd.headline || "The desk is quiet.")}</p>
+    </header>
+    <div class="status-strip tone-${cmd.health_tone || "green"}">
+      <div><span>Family status</span><strong>${escapeHtml(cmd.health_label || "Stable")}</strong></div>
+      <div><span>Decisions waiting</span><strong>${waiting}</strong></div>
+      <div><span>Exceptions</span><strong>${cmd.exceptions || 0}</strong></div>
+      <div><span>Days until Sunday</span><strong>${cmd.days_until_review ?? "—"}</strong></div>
+    </div>
+    <div class="os-grid">
+      <article class="panel">
+        <h2>Needs you</h2>
+        ${needs}
+      </article>
+      <article class="panel">
+        <h2>Today</h2>
+        <ul class="plan-list today-list">${today || "<li>Nothing on the calendar.</li>"}</ul>
+        <h2 class="week-h">This week</h2>
+        <ul class="stats">
+          <li>Screen-time adherence <b>${child.adherence ?? "—"}%</b></li>
+          <li>Check-ins <b>${escapeHtml(cmd.week?.checkins || "—")}</b></li>
+          <li>New apps <b>${cmd.week?.new_apps ?? 0}</b></li>
+          <li>Pending decisions <b>${waiting}</b></li>
+        </ul>
+      </article>
+    </div>
+    ${patterns ? `<article class="panel"><h2>Family Loop noticed a pattern</h2>${patterns}</article>` : ""}
+    <article class="panel">
+      <h2>Agent activity</h2>
+      <ol class="trace-list">${(s.trace || []).slice(0, 8).map((row) =>
+        `<li><b>${escapeHtml(row.agent)}</b> · ${escapeHtml(row.event)}<br/>${escapeHtml(row.summary)}</li>`
+      ).join("") || "<li>Desk is quiet.</li>"}</ol>
+    </article>
+    <div class="demo-rail">
+      <button type="button" class="btn-sun" data-demo="simulate-saturday">Run Saturday simulation</button>
+      <button type="button" class="btn-primary" data-demo="fast-forward">Fast-forward family</button>
+    </div>
+    ${sim ? `<article class="panel"><h2>Simulation</h2><ol class="sim-list">${sim}</ol></article>` : ""}
+    ${changed.summary ? `<article class="panel"><h2>What changed this week</h2>
+      <ul class="stats">
+        <li>Screen time <b>${changed.screen_delta > 0 ? "+" : ""}${changed.screen_delta}%</b></li>
+        <li>New requests <b>${changed.new_requests}</b></li>
+        <li>Resolved <b>${changed.resolved}</b></li>
+        <li>Still waiting <b>${changed.still_waiting}</b></li>
+      </ul>
+      <p>${escapeHtml(changed.summary)}</p>
+      ${steps ? `<ol class="trace-list">${steps}</ol>` : ""}
+    </article>` : ""}
+  `;
+  $("pane-decisions").innerHTML = `
+    <h2>${waiting} need you</h2>
+    <p class="hint">The OS still enforces. You only decide.</p>
+    ${(cmd.needs_you || []).map(decisionCard).join("") || "<p class='muted'>Inbox empty.</p>"}
+  `;
+  $("pane-timeline").innerHTML = (s.timeline || []).map((day) => `
+    <article class="time-day">
+      <h3>${escapeHtml(day.date)}</h3>
+      <ul>${(day.items || []).map((it) => `<li class="tone-${it.tone}"><strong>${escapeHtml(it.title)}</strong><br/>${escapeHtml(it.detail || "")}</li>`).join("")}</ul>
+    </article>
+  `).join("") || "<p class='muted'>No memory yet. File an ask or a snapshot.</p>";
+  const mem = s.memory || {};
+  $("pane-memory").innerHTML = `
+    <article class="panel">
+      <h2>What Family Loop knows</h2>
+      <p class="tiny">Persistent memory. Not a chat log.</p>
+      <h3>Policy</h3>
+      <p>Ask-first: ${escapeHtml((mem.policy?.ask_first || []).join(", ") || "—")}<br/>
+      Hard-no: ${escapeHtml((mem.policy?.hard_no || []).join(", ") || "—")}<br/>
+      YouTube: ${escapeHtml(mem.policy?.youtube || "—")}</p>
+      <h3>People</h3>
+      <ul>${(mem.people || []).map((p) => `<li>${escapeHtml(p.name)} — ${escapeHtml(p.role)}</li>`).join("")}</ul>
+      <h3>Approvals</h3>
+      <ul>${(mem.approvals || []).map((a) => `<li>${escapeHtml(a.name)} · ${escapeHtml(a.status)}</li>`).join("")}</ul>
+      <h3>Routines</h3>
+      <ul>${(mem.routines || []).map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+      <h3>Recent patterns</h3>
+      <ul>${(mem.patterns || []).map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+    </article>
+  `;
+}
+
 function renderParent() {
   const s = state.data || {};
+  renderCommand(s);
+  setParentPane(state.parentPane || "home");
   renderCalendar($("parent-calendar"), s.calendar, "parent");
   fillSetupForm(s);
   renderPolicyCard(s.policy_card);
@@ -660,13 +810,51 @@ $("locks-form").addEventListener("submit", async (ev) => {
   toast("Checklist saved. Still not an OS write.");
 });
 
-$("inbox-list").addEventListener("click", async (ev) => {
-  const allow = ev.target.dataset.allow;
-  const deny = ev.target.dataset.deny;
-  const pending = ev.target.dataset.pending;
-  const saveAsk = ev.target.dataset.saveAsk;
+async function handleDeskClick(ev) {
+  const demoBtn = ev.target.closest("[data-demo]");
+  if (demoBtn) {
+    const kind = demoBtn.dataset.demo;
+    const path = {
+      saturday: "/api/demo/saturday",
+      sunday: "/api/demo/sunday",
+      ping: "/api/ping",
+      digest: "/api/digest",
+      reset: "/api/demo/reset",
+      week: "/api/demo/week",
+      live: "/api/demo/live",
+      "simulate-saturday": "/api/demo/simulate-saturday",
+      "fast-forward": "/api/demo/fast-forward",
+    }[kind];
+    if (!path) return;
+    const data = await api(path, { method: "POST" });
+    state.data = data.state;
+    if (data.steps) state.simSteps = data.steps;
+    toast(kind === "digest" ? "Sunday is on the desk." : `Demo: ${kind}`);
+    if (kind === "fast-forward" || kind === "simulate-saturday") state.parentPane = "home";
+    render();
+    return;
+  }
+  const btn = ev.target.closest("[data-allow], [data-deny], [data-pending], [data-save-ask]");
+  if (!btn) return;
+  const allow = btn.dataset.allow;
+  const deny = btn.dataset.deny;
+  const pending = btn.dataset.pending;
+  const saveAsk = btn.dataset.saveAsk;
   const id = allow || deny || pending || saveAsk;
   if (!id) return;
+  if (String(id).startsWith("app:")) {
+    if (pending) return;
+    const subject = String(id).slice(4);
+    const status = allow ? "allowed" : "denied";
+    const data = await api("/api/exceptions", {
+      method: "POST",
+      body: JSON.stringify({ subject, status }),
+    });
+    state.data = data.state;
+    toast(status === "allowed" ? `${subject} is now allowed.` : `${subject} stays off the list.`);
+    render();
+    return;
+  }
   const note = document.querySelector(`[data-edit-note="${id}"]`)?.value || "";
   const subject = document.querySelector(`[data-edit-subject="${id}"]`)?.value;
   const detail = document.querySelector(`[data-edit-detail="${id}"]`)?.value;
@@ -691,6 +879,12 @@ $("inbox-list").addEventListener("click", async (ev) => {
   });
   state.data = data.state;
   render();
+}
+
+document.addEventListener("click", (ev) => {
+  if (ev.target.closest("[data-demo], [data-allow], [data-deny], [data-pending], [data-save-ask]")) {
+    handleDeskClick(ev).catch((err) => toast(err.message));
+  }
 });
 
 $("family-form").addEventListener("submit", async (ev) => {
@@ -759,23 +953,8 @@ $("locks-form").addEventListener("change", () => {
   $("locks-form").requestSubmit();
 });
 
-document.querySelectorAll("[data-demo]").forEach((btn) => {
-  btn.addEventListener("click", async () => {
-    const kind = btn.dataset.demo;
-    const path = {
-      saturday: "/api/demo/saturday",
-      sunday: "/api/demo/sunday",
-      ping: "/api/ping",
-      digest: "/api/digest",
-      reset: "/api/demo/reset",
-      week: "/api/demo/week",
-      live: "/api/demo/live",
-    }[kind];
-    const data = await api(path, { method: "POST" });
-    state.data = data.state;
-    toast(kind === "digest" ? "Sunday is on the desk." : `Demo: ${kind}`);
-    render();
-  });
+document.querySelectorAll("#parent-nav [data-pane]").forEach((btn) => {
+  btn.addEventListener("click", () => setParentPane(btn.dataset.pane));
 });
 
 $("checkin-form").addEventListener("submit", async (ev) => {

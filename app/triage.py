@@ -97,10 +97,17 @@ def _extra_time(policy: dict[str, Any], subject: str, detail: str, state: dict[s
             "must_ask_parent": False,
             "reason": "YouTube-after-homework is on. Extra time is allowed only because the child marked homework done. Not a new app.",
         }
+    from app.intelligence import extra_time_context
+
+    ctx = extra_time_context(state)
+    extra = "over-cap extra time waits for a parent"
+    if ctx.get("eligible_to_recommend"):
+        extra = ctx["note"]
     return {
         "action": "ask_parent",
         "must_ask_parent": True,
-        "reason": _reason("extra_time", subject, False, _is_social(subject, "extra_time"), "over-cap extra time waits for a parent"),
+        "reason": _reason("extra_time", subject, False, _is_social(subject, "extra_time"), extra),
+        "calendar": ctx,
     }
 
 

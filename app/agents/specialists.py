@@ -6,7 +6,10 @@ from app.agents.hooks import DeskGuardrails
 from app.agents.model import build_model
 from app.agents.tools import (
     file_child_request,
+    get_calendar_context,
     get_family_state,
+    get_request_history,
+    get_week_context,
     issue_random_ping,
     list_pending_requests,
     list_recent_decisions,
@@ -67,11 +70,11 @@ def triage_agent() -> Agent:
     return _agent(
         "request_triage",
         "Allows, denies, or escalates a child ask against policy and last week's decisions.",
-        f"""You triage child asks. Always call file_child_request. The tool applies the policy
-and last week's decisions. You may explain the reason; you may not silently allow social,
-a purchase, a new contact, or a new app.
+        f"""You triage child asks. Call get_family_state, get_request_history, get_calendar_context
+if this is extra time, then file_child_request. The tools apply policy and history.
+You may explain; you may not silently allow social, a purchase, a new contact, or a new app.
 {DISCLAIMER}""",
-        [file_child_request, list_recent_decisions, get_family_state],
+        [get_family_state, get_request_history, get_calendar_context, list_recent_decisions, file_child_request],
     )
 
 
@@ -79,10 +82,10 @@ def digest_agent() -> Agent:
     return _agent(
         "digest_writer",
         "Writes the Sunday Red / Needs you / Green digest and sends the WhatsApp-shaped message.",
-        f"""You write Sunday. Call write_sunday_digest, then send_digest_message.
-Only three sections: Red, Needs you, Green. Do not invent extra categories.
+        f"""You write Sunday. Call get_family_state, then get_week_context, then write_sunday_digest,
+then send_digest_message. Only three sections: Red, Needs you, Green.
 {DISCLAIMER}""",
-        [write_sunday_digest, send_digest_message, get_family_state],
+        [get_family_state, get_week_context, write_sunday_digest, send_digest_message],
     )
 
 

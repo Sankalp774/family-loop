@@ -42,6 +42,7 @@ def empty_state() -> dict[str, Any]:
         "agent_log": [],
         "todos": [],
         "events": [],
+        "exception_log": [],
         "clock": None,
         "disclaimer": "We do not control the device.",
     }

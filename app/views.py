@@ -4,6 +4,7 @@ from typing import Any
 
 from app.calendar import family_calendar
 from app.config import ASK_FIRST_CHOICES, HARD_NO_CHOICES, KIND_CHOICES, LOCK_ITEMS, PARENT_NOTE_DEFAULT
+from app.intelligence import family_state, memory_view, patterns, request_history, timeline, what_changed
 from app.pings import open_ping, saturday_due
 from app.policy import locks_complete, policy_card
 
@@ -40,9 +41,32 @@ def public_state(state: dict[str, Any], role: str) -> dict[str, Any]:
         "todos": state.get("todos") or [],
         "events": state.get("events") or [],
     }
+    if role == "parent":
+        payload["command"] = family_state(state)
+        payload["timeline"] = timeline(state)
+        payload["what_changed"] = what_changed(state)
+        payload["patterns"] = patterns(state)
+        payload["memory"] = memory_view(state)
+        payload["trace"] = _trace(state)
+        for row in payload["requests"]:
+            row["history"] = request_history(state, row.get("subject") or "")
     if role == "child":
         payload["banner"] = _child_banner(state, ping)
     return payload
+
+
+def _trace(state: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = []
+    for item in (state.get("agent_log") or [])[-24:]:
+        rows.append(
+            {
+                "at": item.get("at"),
+                "agent": item.get("agent") or "family_desk",
+                "event": item.get("event") or item.get("tool") or "tool",
+                "summary": item.get("summary") or "",
+            }
+        )
+    return list(reversed(rows))
 
 
 def _requests_for(state: dict[str, Any], role: str) -> list[dict[str, Any]]:

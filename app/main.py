@@ -20,7 +20,9 @@ from app.ids import new_id
 from app.calendar import family_calendar
 from app.config import ASK_FIRST_CHOICES, HARD_NO_CHOICES, KIND_CHOICES, LOCK_ITEMS, PARENT_NOTE_DEFAULT, ROOT
 from app.policy import policy_from_answers
+from app.intelligence import resolve_exception
 from app.seed import seed
+from app.simulate import fast_forward, saturday_simulation
 from app.store import get_store
 from app.events import add_event, calendar_meta, delete_event, patch_event
 from app.todos import add_todo, delete_todo, patch_todo
@@ -96,6 +98,11 @@ class AskBody(BaseModel):
 class DecideBody(BaseModel):
     status: str
     note: str = ""
+
+
+class ExceptionBody(BaseModel):
+    subject: str
+    status: str
 
 
 class SnapshotBody(BaseModel):
@@ -286,6 +293,15 @@ def api_asks(body: AskBody, user: Annotated[dict, Depends(current_user)]) -> dic
         "agent": _agent_public(result),
         "state": public_state(get_store().snapshot(), user["role"]),
     }
+
+
+@app.post("/api/exceptions")
+def api_exception(body: ExceptionBody, user: Annotated[dict, Depends(current_user)]) -> dict:
+    require_parent(user)
+    result = resolve_exception(body.subject, body.status, by=user.get("name") or "parent")
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("reason"))
+    return {"ok": True, "state": public_state(get_store().snapshot(), "parent")}
 
 
 @app.post("/api/asks/{request_id}/decide")
@@ -500,6 +516,26 @@ def api_live(user: Annotated[dict, Depends(current_user)]) -> dict:
     require_parent(user)
     clear_override()
     return {"clock": None, "state": public_state(get_store().snapshot(), "parent")}
+
+
+@app.post("/api/demo/simulate-saturday")
+def api_sim_saturday(user: Annotated[dict, Depends(current_user)]) -> dict:
+    require_parent(user)
+    result = saturday_simulation()
+    return {
+        "steps": result["steps"],
+        "state": public_state(get_store().snapshot(), "parent"),
+    }
+
+
+@app.post("/api/demo/fast-forward")
+def api_fast_forward(user: Annotated[dict, Depends(current_user)]) -> dict:
+    require_parent(user)
+    result = fast_forward()
+    return {
+        "steps": result["steps"],
+        "state": public_state(get_store().snapshot(), "parent"),
+    }
 
 
 def _agent_public(result: dict) -> dict:

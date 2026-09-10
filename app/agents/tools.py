@@ -11,6 +11,7 @@ from app.ids import new_id
 from app.pings import can_issue_ping, ping_record
 from app.policy import locks_complete, policy_from_answers
 from app.snapshots import diff_new_unapproved, parse_app_list, total_minutes
+from app.intelligence import extra_time_context, request_history, sunday_steps, what_changed
 from app.store import get_store
 from app.triage import evaluate_request
 
@@ -173,6 +174,8 @@ def file_child_request(
         "status": "pending",
         "source": "child",
     }
+    hist = request_history(state, subject)
+    cal = extra_time_context(state) if kind == "extra_time" else None
     verdict = evaluate_request(state, request)
     if verdict["action"] == "allow":
         request["status"] = "allowed"
@@ -188,6 +191,9 @@ def file_child_request(
     request["triage"] = verdict["action"]
     request["reason"] = verdict["reason"]
     request["must_ask_parent"] = verdict["must_ask_parent"]
+    request["history"] = hist
+    if cal:
+        request["calendar_context"] = cal
 
     def mutate(data):
         data.setdefault("requests", []).append(request)
@@ -208,10 +214,50 @@ def file_child_request(
     return json.dumps(
         {
             "request": request,
+            "history": hist,
+            "calendar": cal,
             "note": "Parent only sees this if triage is ask_parent. We do not install anything.",
         },
         ensure_ascii=False,
     )
+
+
+@tool
+def get_request_history(subject: str) -> str:
+    """Longitudinal memory for one subject: first asked, count, last decision, days pending.
+
+    Args:
+        subject: App or site name, e.g. Reddit
+    """
+    return json.dumps(request_history(_state(), subject), ensure_ascii=False)
+
+
+@tool
+def get_week_context(query: str = "") -> str:
+    """Last 7–14 days of snapshots, pending asks, and what changed.
+
+    Args:
+        query: Unused.
+    """
+    state = _state()
+    return json.dumps(
+        {
+            "what_changed": what_changed(state),
+            "pending": [r for r in (state.get("requests") or []) if r.get("status") == "pending"],
+            "snapshots": (state.get("snapshots") or [])[-4:],
+        },
+        ensure_ascii=False,
+    )
+
+
+@tool
+def get_calendar_context(query: str = "") -> str:
+    """Today's calendar plus homework/sports signals for extra-time asks.
+
+    Args:
+        query: Unused.
+    """
+    return json.dumps(extra_time_context(_state()), ensure_ascii=False)
 
 
 @tool
@@ -349,10 +395,14 @@ def write_sunday_digest(query: str = "") -> str:
                 ping["missed_at"] = iso()
         digest_full = build_digest(data)
         digest_full["id"] = digest["id"]
+        digest_full["steps"] = sunday_steps(data)
+        digest_full["what_changed"] = what_changed(data)
         data.setdefault("digests", []).append(digest_full)
         digest.update(digest_full)
 
     store.update(mutate)
+    digest["steps"] = sunday_steps(store.snapshot())
+    digest["what_changed"] = what_changed(store.snapshot())
     return json.dumps(digest, ensure_ascii=False)
 
 

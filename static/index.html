@@ -30,7 +30,7 @@
           <i class="av av-digest">G</i>
           <i class="av av-clerk">O</i>
         </span>
-        <span class="agent-fab-label">6 agents</span>
+        <span class="agent-fab-label">Agents</span>
       </button>
       <div class="agent-pop" id="agent-pop" hidden>
         <p class="agent-pop-kicker">How the desk works</p>
@@ -87,6 +87,19 @@
         <label>City <input name="city" value="Bengaluru" /></label>
         <button type="submit" class="btn-primary">Save family</button>
       </form>
+      <nav class="os-nav" id="parent-nav">
+        <button type="button" data-pane="home" class="on">Home</button>
+        <button type="button" data-pane="decisions">Decisions <span class="nav-badge" id="nav-badge">0</span></button>
+        <button type="button" data-pane="timeline">Timeline</button>
+        <button type="button" data-pane="calendar">Calendar</button>
+        <button type="button" data-pane="memory">Family state</button>
+        <button type="button" data-pane="desk">Desk</button>
+      </nav>
+      <section id="pane-home" class="os-pane"></section>
+      <section id="pane-decisions" class="os-pane" hidden></section>
+      <section id="pane-timeline" class="os-pane" hidden></section>
+      <section id="pane-memory" class="os-pane" hidden></section>
+      <section id="pane-desk" class="os-pane" hidden>
       <div class="desk-grid">
         <article class="panel clipboard">
           <h2>House rules</h2>
@@ -98,23 +111,37 @@
               <label>School starts <input name="school_start" type="time" value="08:00" /></label>
               <label>School ends <input name="school_end" type="time" value="15:00" /></label>
             </div>
-            <fieldset>
-              <legend>Ask me first</legend>
-              <p class="tiny">Tap to toggle. Add your own if the list is missing something.</p>
-              <div class="chips" id="ask-first"></div>
-              <div class="chip-add"><input id="ask-first-new" placeholder="Add a rule, e.g. new game" /><button type="button" class="btn-sky" id="ask-first-add">Add</button></div>
-            </fieldset>
-            <fieldset>
-              <legend>Never allowed</legend>
-              <p class="tiny">These are a no without asking.</p>
-              <div class="chips" id="hard-no"></div>
-              <div class="chip-add"><input id="hard-no-new" placeholder="Add a hard no" /><button type="button" class="btn-deny" id="hard-no-add">Add</button></div>
-            </fieldset>
-            <fieldset>
-              <legend>Already allowed apps</legend>
-              <div class="chips" id="allowed-apps"></div>
-              <div class="chip-add"><input id="allowed-new" placeholder="Add an app" /><button type="button" class="btn-allow" id="allowed-add">Add</button></div>
-            </fieldset>
+            <div class="chip-block">
+              <div class="chip-block-main">
+                <fieldset>
+                  <legend>Ask me first</legend>
+                  <p class="tiny">Tap to toggle. Add your own if the list is missing something.</p>
+                  <div class="chips" id="ask-first"></div>
+                  <div class="chip-add"><input id="ask-first-new" placeholder="Add a rule, e.g. new game" /><button type="button" class="btn-sky" id="ask-first-add">Add</button></div>
+                </fieldset>
+                <fieldset>
+                  <legend>Never allowed</legend>
+                  <p class="tiny">These are a no without asking.</p>
+                  <div class="chips" id="hard-no"></div>
+                  <div class="chip-add"><input id="hard-no-new" placeholder="Add a hard no" /><button type="button" class="btn-deny" id="hard-no-add">Add</button></div>
+                </fieldset>
+                <fieldset>
+                  <legend>Already allowed apps</legend>
+                  <div class="chips" id="allowed-apps"></div>
+                  <div class="chip-add"><input id="allowed-new" placeholder="Add an app" /><button type="button" class="btn-allow" id="allowed-add">Add</button></div>
+                </fieldset>
+              </div>
+              <aside class="tone-stack" aria-label="Colour key">
+                <p class="tone-kicker">Notable</p>
+                <ul>
+                  <li class="tone-social"><b>Social</b> red · WhatsApp, YouTube, dating</li>
+                  <li class="tone-edu"><b>Education</b> green · Classroom, Khan</li>
+                  <li class="tone-other"><b>Other</b> yellow · Maps, Phone, extra time</li>
+                  <li class="tone-game"><b>Games</b> orange · Roblox, play</li>
+                  <li class="tone-misc"><b>Misc</b> purple · money, gambling</li>
+                </ul>
+              </aside>
+            </div>
             <label class="check"><input name="youtube_after_homework" type="checkbox" checked /> YouTube only after homework</label>
             <label>Homework done after <input name="homework_done_after" type="time" value="17:00" /></label>
             <label class="check"><input name="sports_phone_preset" type="checkbox" checked /> Sports phone: Maps and Phone during practice</label>
@@ -168,6 +195,8 @@
             <button type="button" class="btn-mint" data-demo="sunday">It’s Sunday</button>
             <button type="button" class="btn-primary" data-demo="live">Live calendar</button>
             <button type="button" class="btn-digest" data-demo="digest">Run Sunday digest</button>
+            <button type="button" class="btn-sky" data-demo="simulate-saturday">Run Saturday simulation</button>
+            <button type="button" class="btn-primary" data-demo="fast-forward">Fast-forward family</button>
           </div>
           <div id="digest-board" class="digest-board"></div>
           <div class="wa" id="wa-thread">
@@ -189,7 +218,10 @@
         </div>
         <ol id="agent-log"></ol>
       </aside>
-      <div id="parent-calendar" class="cal-wrap"></div>
+      </section>
+      <section id="pane-calendar" class="os-pane" hidden>
+        <div id="parent-calendar" class="cal-wrap"></div>
+      </section>
     </section>
 
     <section id="child" class="child-home" hidden>
