@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("FAMILY_LOOP_MODEL", "mock")
+    monkeypatch.setenv("FAMILY_LOOP_SKIP_LM_PROBE", "1")
     monkeypatch.setenv("FAMILY_LOOP_DATA", str(tmp_path / "family.json"))
 
     import app.agents.desk as desk

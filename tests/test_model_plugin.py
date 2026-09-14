@@ -9,21 +9,17 @@ def test_event_wakes_desk_and_specialist():
     assert agents_for_event("setup") == ["family_desk", "setup_coach"]
 
 
-def test_scripted_mode_is_default(client):
-    health = client.get("/api/health").json()
-    assert health["mode"] in {"scripted", "mock"}
+def test_ui_offers_bedrock_and_lmstudio(client):
     info = client.get("/api/model").json()
-    assert info["mode"] == "scripted"
     ids = {opt["id"] for opt in info["options"]}
-    assert {"scripted", "lmstudio", "bedrock"} <= ids
+    assert ids == {"bedrock", "lmstudio"}
     assert len(info["agents"]) == 6
 
 
-def test_switching_to_lmstudio_without_server_stays_scripted(client):
-    bad = client.post("/api/model", json={"mode": "lmstudio"})
-    assert bad.status_code in {503, 400}
-    still = client.get("/api/model").json()
-    assert still["mode"] == "scripted"
+def test_selecting_lmstudio_stays_selected_without_server(client):
+    ok = client.post("/api/model", json={"mode": "lmstudio", "base_url": "http://192.168.31.64:1234"})
+    assert ok.status_code == 200
+    assert ok.json()["mode"] == "lmstudio"
 
 
 def test_ask_returns_active_agents(client):

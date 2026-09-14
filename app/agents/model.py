@@ -17,9 +17,9 @@ from strands.types.tools import ToolSpec
 from app.config import (
     AWS_REGION,
     BEDROCK_MODEL_ID,
-    LMSTUDIO_BASE_URL,
     LMSTUDIO_MODEL,
     current_model_mode,
+    lmstudio_base,
 )
 
 log = logging.getLogger("family_loop.model")
@@ -262,17 +262,32 @@ def probe_lmstudio() -> dict:
     import urllib.error
     import urllib.request
 
-    url = f"{LMSTUDIO_BASE_URL}/models"
+    if os.environ.get("FAMILY_LOOP_SKIP_LM_PROBE") == "1":
+        return {
+            "ok": False,
+            "reason": "probe skipped",
+            "base_url": lmstudio_base(),
+            "models": [],
+            "model_id": LMSTUDIO_MODEL,
+        }
+    base = lmstudio_base()
+    url = f"{base}/models"
     req = urllib.request.Request(url, headers={"Authorization": "Bearer lm-studio"})
     try:
-        with urllib.request.urlopen(req, timeout=2) as resp:
+        with urllib.request.urlopen(req, timeout=1.2) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
-        return {"ok": False, "reason": f"LM Studio is not reachable at {LMSTUDIO_BASE_URL} ({exc})."}
+        return {
+            "ok": False,
+            "reason": f"LM Studio is not reachable at {base} ({exc}).",
+            "base_url": base,
+            "models": [],
+            "model_id": LMSTUDIO_MODEL,
+        }
     models = [row.get("id") for row in (payload.get("data") or []) if row.get("id")]
     return {
         "ok": True,
-        "base_url": LMSTUDIO_BASE_URL,
+        "base_url": base,
         "models": models,
         "model_id": LMSTUDIO_MODEL or (models[0] if models else ""),
     }
@@ -285,11 +300,11 @@ def _lmstudio_model():
     model_id = probe.get("model_id") or "local-model"
     from strands.models.openai import OpenAIModel
 
-    log.info("Using LM Studio %s at %s", model_id, LMSTUDIO_BASE_URL)
+    log.info("Using LM Studio %s at %s", model_id, lmstudio_base())
     return OpenAIModel(
         client_args={
             "api_key": os.environ.get("LMSTUDIO_API_KEY", "lm-studio"),
-            "base_url": LMSTUDIO_BASE_URL,
+            "base_url": lmstudio_base(),
         },
         model_id=model_id,
         params={"temperature": 0.2},
@@ -308,8 +323,12 @@ def build_model():
             temperature=0.2,
         )
     if mode == "lmstudio":
-        return _lmstudio_model()
-    log.info("Using scripted DeskRouterModel (demo-safe; no GPU, no Bedrock)")
+        try:
+            return _lmstudio_model()
+        except Exception as exc:
+            log.warning("LM Studio unavailable (%s); using local agent loop", exc)
+            return DeskRouterModel()
+    log.info("Using local DeskRouterModel")
     return DeskRouterModel()
 
 
@@ -320,5 +339,6 @@ def model_label() -> str:
     if mode == "lmstudio":
         probe = probe_lmstudio()
         mid = probe.get("model_id") or LMSTUDIO_MODEL or "local"
-        return f"lmstudio:{mid}"
-    return "scripted:desk-router"
+        tag = mid if probe.get("ok") else "offline"
+        return f"lmstudio:{tag}"
+    return "lmstudio:offline"

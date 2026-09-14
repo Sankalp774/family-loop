@@ -13,9 +13,15 @@ except ImportError:
 
 DATA_PATH = Path(os.environ.get("FAMILY_LOOP_DATA", ROOT / "data" / "family.json"))
 SESSIONS_DIR = Path(os.environ.get("FAMILY_LOOP_SESSIONS", ROOT / "data" / "sessions"))
-MODEL_MODE = os.environ.get("FAMILY_LOOP_MODEL", "mock").strip().lower()
-LMSTUDIO_BASE_URL = os.environ.get("LMSTUDIO_BASE_URL", "http://127.0.0.1:1234/v1").rstrip("/")
+MODEL_MODE = os.environ.get("FAMILY_LOOP_MODEL", "lmstudio").strip().lower()
 LMSTUDIO_MODEL = os.environ.get("LMSTUDIO_MODEL", "").strip()
+
+
+def lmstudio_base() -> str:
+    raw = os.environ.get("LMSTUDIO_BASE_URL", "http://192.168.31.64:1234").rstrip("/")
+    if raw.endswith("/v1"):
+        return raw
+    return raw + "/v1"
 
 
 def current_model_mode() -> str:
@@ -39,7 +45,7 @@ def set_model_mode(mode: str) -> str:
     elif key in {"bedrock", "aws", "sonnet"}:
         key = "bedrock"
     else:
-        raise ValueError("mode must be scripted, lmstudio, or bedrock")
+        raise ValueError("mode must be bedrock or lmstudio")
     MODEL_MODE = key
     os.environ["FAMILY_LOOP_MODEL"] = "mock" if key == "scripted" else key
     return key

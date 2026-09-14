@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
@@ -178,32 +179,32 @@ def health() -> dict:
 
 class ModelBody(BaseModel):
     mode: str
+    base_url: str | None = None
 
 
 @app.get("/api/model")
 def api_model_get() -> dict:
+    from app.config import lmstudio_base
+
     mode = current_model_mode()
+    ui_mode = "lmstudio" if mode != "bedrock" else "bedrock"
     lm = probe_lmstudio()
     return {
-        "mode": mode,
+        "mode": ui_mode,
+        "internal": mode,
         "label": model_label(),
         "options": [
             {
-                "id": "scripted",
-                "label": "Scripted demo",
-                "hint": "Deterministic Strands loop. Video-safe. No GPU, no Bedrock.",
+                "id": "bedrock",
+                "label": "Bedrock",
+                "hint": "Amazon Bedrock Claude Sonnet when AWS access is on.",
             },
             {
                 "id": "lmstudio",
                 "label": "LM Studio",
-                "hint": "Live local model at localhost:1234. Load a model in LM Studio first.",
+                "hint": f"Live local model at {lmstudio_base()}",
                 "ready": bool(lm.get("ok")),
                 "models": lm.get("models") or [],
-            },
-            {
-                "id": "bedrock",
-                "label": "Amazon Bedrock",
-                "hint": "Claude Sonnet when AWS access is enabled.",
             },
         ],
         "agents": AGENTS,
@@ -213,17 +214,20 @@ def api_model_get() -> dict:
 
 @app.post("/api/model")
 def api_model_set(body: ModelBody) -> dict:
+    if body.base_url:
+        os.environ["LMSTUDIO_BASE_URL"] = body.base_url.rstrip("/")
     try:
         mode = set_model_mode(body.mode)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if mode == "lmstudio":
-        probe = probe_lmstudio()
-        if not probe.get("ok"):
-            set_model_mode("scripted")
-            raise HTTPException(status_code=503, detail=probe.get("reason"))
     reset_orchestrator()
-    return {"mode": mode, "label": model_label(), "ok": True}
+    return {
+        "mode": "lmstudio" if mode != "bedrock" else "bedrock",
+        "internal": mode,
+        "label": model_label(),
+        "ok": True,
+        "lmstudio": probe_lmstudio(),
+    }
 
 
 @app.get("/api/calendar")

@@ -44,7 +44,9 @@ async function api(path, options = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || res.statusText);
-  if (data.agent && data.agent.active_agents) wakePets(data.agent.active_agents);
+  if (data.agent && data.agent.active_agents) {
+    wakePets(data.agent.active_agents, data.agent.event);
+  }
   return data;
 }
 
@@ -73,24 +75,48 @@ function petSVG(color) {
 }
 
 function mountPets() {
-  const stage = $("pet-stage");
-  if (!stage) return;
-  stage.innerHTML = PETS.map((p) =>
-    `<div class="pet" data-pet="${p.id}" title="${p.name}">
-      ${petSVG(p.color)}
-      <span class="pet-name" style="color:${p.color}">${p.name}</span>
-    </div>`
-  ).join("");
+  /* Pets only pop when an agent runs — nothing stays on the bar. */
 }
 
-function wakePets(ids) {
-  const wanted = new Set(ids || []);
-  document.querySelectorAll(".pet").forEach((el) => {
-    const on = wanted.has(el.dataset.pet);
-    el.classList.toggle("busy", on);
-    if (on) {
-      clearTimeout(el._t);
-      el._t = setTimeout(() => el.classList.remove("busy"), 4200);
+let petQueue = Promise.resolve();
+
+function showOnePet(spec, line) {
+  const host = $("pet-pop");
+  if (!host || !spec) return Promise.resolve();
+  host.hidden = false;
+  host.innerHTML = `<div class="pet-card" style="border-top:3px solid ${spec.color}">
+    ${line ? `<p class="pet-speech">${line}</p>` : ""}
+    ${petSVG(spec.color)}
+    <span class="pet-name" style="color:${spec.color}">${spec.name}</span>
+  </div>`;
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      host.hidden = true;
+      host.innerHTML = "";
+      resolve();
+    }, 2200);
+  });
+}
+
+function wakePets(ids, eventName) {
+  const order = [];
+  (ids || []).forEach((id) => {
+    const spec = PETS.find((p) => p.id === id);
+    if (spec && !order.some((p) => p.id === spec.id)) order.push(spec);
+  });
+  if (!order.length) return;
+  const lineFor = (spec) => {
+    if (spec.id === "family_desk") return "Desk is routing…";
+    if (spec.id === "setup_coach") return "Coach is writing the policy.";
+    if (spec.id === "request_triage") return "Triage is reading policy + history.";
+    if (spec.id === "checkin_runner") return "Check-in is comparing the snapshot.";
+    if (spec.id === "digest_writer") return "Digest is building Sunday.";
+    if (spec.id === "override_clerk") return "Clerk is logging the decision.";
+    return eventName ? `${spec.name} · ${eventName}` : spec.name;
+  };
+  petQueue = petQueue.then(async () => {
+    for (const spec of order) {
+      await showOnePet(spec, lineFor(spec));
     }
   });
 }
@@ -601,6 +627,16 @@ function renderCommand(s) {
       <div><span>Informational</span><strong>${cmd.attention?.informational ?? 0}</strong></div>
     </div>
     <p class="tiny attention-line">Agents only knock when someone has to say yes or no.</p>
+    <article class="panel">
+      <h2>60-second path</h2>
+      <ol class="judge-path">
+        <li><span>1</span> Rules → save house policy + locks</li>
+        <li><span>2</span> Aarav asks for Reddit → pending</li>
+        <li><span>3</span> Fast-forward family → Discord exception</li>
+        <li><span>4</span> Sunday evaluation → Red / Needs you / Green</li>
+        <li><span>5</span> Meera decides. The OS still enforces.</li>
+      </ol>
+    </article>
     <div class="os-grid">
       <article class="panel">
         <h2>Needs you</h2>
@@ -630,6 +666,7 @@ function renderCommand(s) {
     ${showEval ? `<article class="panel eval-panel">
       <p class="kicker">Sunday evaluation · Family Desk → Digest writer</p>
       <ol class="eval-steps">${evalSteps.map((line) => `<li>${escapeHtml(line.replace(/^✓\s*/, ""))}</li>`).join("")}</ol>
+      <button type="button" class="btn-sky" id="copy-digest">Copy Sunday letter</button>
     </article>` : ""}
     <article class="panel">
       <h2>Family desk</h2>
@@ -644,6 +681,15 @@ function renderCommand(s) {
     </div>
     ${sim ? `<article class="panel"><h2>Simulation</h2><ol class="sim-list">${sim}</ol></article>` : ""}
   `;
+  $("copy-digest")?.addEventListener("click", async () => {
+    const letter = digest.whatsapp || digest.letter || changed.summary || "";
+    try {
+      await navigator.clipboard.writeText(letter);
+      toast("Sunday letter copied.");
+    } catch (_) {
+      toast(letter);
+    }
+  });
   $("pane-decisions").innerHTML = `
     <h2>${waiting} need you</h2>
     <p class="hint">The OS still enforces. You only decide.</p>
@@ -1101,8 +1147,8 @@ $("model-switch")?.addEventListener("click", async (ev) => {
     });
     state.model = data.label;
     if ($("model-label")) $("model-label").textContent = data.label;
-    toast(data.mode === "lmstudio" ? "Live local model from LM Studio." : "Scripted demo — video-safe.");
-    wakePets(["family_desk"]);
+    toast(data.mode === "lmstudio" ? "LM Studio · 192.168.31.64:1234" : "Amazon Bedrock");
+    wakePets(data.mode === "lmstudio" ? ["family_desk"] : ["family_desk"]);
   } catch (err) {
     toast(err.message);
     refreshModelSwitch();
