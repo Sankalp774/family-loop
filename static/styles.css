@@ -81,6 +81,57 @@ body {
   font-weight: 600;
 }
 .top-meta { display: flex; gap: 0.85rem; align-items: center; font-size: 0.9rem; color: var(--muted); }
+.model-switch {
+  display: flex;
+  gap: 0.25rem;
+  background: #efece7;
+  padding: 0.18rem;
+  border-radius: 999px;
+}
+.model-switch button {
+  background: transparent;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+.model-switch button.on {
+  background: linear-gradient(180deg, #2a2724 0%, #1f1d1b 100%);
+  color: #fff;
+}
+.pet-stage {
+  display: flex;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 0.45rem 1rem 0.55rem;
+  background: #fff;
+  border-bottom: 1px solid var(--rule);
+}
+.pet {
+  width: 3.4rem;
+  text-align: center;
+  opacity: 0.38;
+  filter: grayscale(0.35);
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+.pet.busy {
+  opacity: 1;
+  filter: none;
+}
+.pet-svg { width: 2.6rem; height: 2.9rem; display: block; margin: 0 auto; }
+.pet.busy .pet-svg { animation: pet-bounce 0.42s ease infinite alternate; }
+.pet-name {
+  display: block;
+  margin-top: 0.12rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+@keyframes pet-bounce {
+  from { transform: translateY(0) rotate(-3deg); }
+  to { transform: translateY(-7px) rotate(4deg); }
+}
 
 .doors { max-width: 920px; margin: 3rem auto; padding: 0 1.25rem 4rem; }
 .kicker { text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.75rem; color: var(--muted); }

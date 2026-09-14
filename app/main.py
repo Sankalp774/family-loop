@@ -8,8 +8,10 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.agents.desk import run_desk
-from app.agents.model import model_label
+from app.agents.desk import reset_orchestrator, run_desk
+from app.agents.model import model_label, probe_lmstudio
+from app.agents.roster import AGENTS
+from app.config import current_model_mode, set_model_mode
 from app.auth import clear_session, current_user, login, require_parent, start_session
 from app.clock import clear_override, iso
 from app.clock import set_override as set_clock
@@ -169,8 +171,59 @@ def health() -> dict:
     return {
         "ok": True,
         "model": model_label(),
+        "mode": current_model_mode(),
         "disclaimer": "We do not control the device.",
     }
+
+
+class ModelBody(BaseModel):
+    mode: str
+
+
+@app.get("/api/model")
+def api_model_get() -> dict:
+    mode = current_model_mode()
+    lm = probe_lmstudio()
+    return {
+        "mode": mode,
+        "label": model_label(),
+        "options": [
+            {
+                "id": "scripted",
+                "label": "Scripted demo",
+                "hint": "Deterministic Strands loop. Video-safe. No GPU, no Bedrock.",
+            },
+            {
+                "id": "lmstudio",
+                "label": "LM Studio",
+                "hint": "Live local model at localhost:1234. Load a model in LM Studio first.",
+                "ready": bool(lm.get("ok")),
+                "models": lm.get("models") or [],
+            },
+            {
+                "id": "bedrock",
+                "label": "Amazon Bedrock",
+                "hint": "Claude Sonnet when AWS access is enabled.",
+            },
+        ],
+        "agents": AGENTS,
+        "lmstudio": lm,
+    }
+
+
+@app.post("/api/model")
+def api_model_set(body: ModelBody) -> dict:
+    try:
+        mode = set_model_mode(body.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if mode == "lmstudio":
+        probe = probe_lmstudio()
+        if not probe.get("ok"):
+            set_model_mode("scripted")
+            raise HTTPException(status_code=503, detail=probe.get("reason"))
+    reset_orchestrator()
+    return {"mode": mode, "label": model_label(), "ok": True}
 
 
 @app.get("/api/calendar")
@@ -545,6 +598,7 @@ def _agent_public(result: dict) -> dict:
         "used_strands": result.get("used_strands"),
         "used_agent_loop": result.get("used_agent_loop"),
         "text": result.get("text"),
+        "active_agents": result.get("active_agents") or ["family_desk"],
     }
 
 

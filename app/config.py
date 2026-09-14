@@ -14,6 +14,35 @@ except ImportError:
 DATA_PATH = Path(os.environ.get("FAMILY_LOOP_DATA", ROOT / "data" / "family.json"))
 SESSIONS_DIR = Path(os.environ.get("FAMILY_LOOP_SESSIONS", ROOT / "data" / "sessions"))
 MODEL_MODE = os.environ.get("FAMILY_LOOP_MODEL", "mock").strip().lower()
+LMSTUDIO_BASE_URL = os.environ.get("LMSTUDIO_BASE_URL", "http://127.0.0.1:1234/v1").rstrip("/")
+LMSTUDIO_MODEL = os.environ.get("LMSTUDIO_MODEL", "").strip()
+
+
+def current_model_mode() -> str:
+    raw = os.environ.get("FAMILY_LOOP_MODEL", MODEL_MODE).strip().lower()
+    if raw in {"mock", "demo", "scripted"}:
+        return "scripted"
+    if raw in {"lmstudio", "lm-studio", "local"}:
+        return "lmstudio"
+    if raw in {"bedrock", "aws", "sonnet"}:
+        return "bedrock"
+    return raw or "scripted"
+
+
+def set_model_mode(mode: str) -> str:
+    global MODEL_MODE
+    key = (mode or "scripted").strip().lower()
+    if key in {"mock", "demo", "scripted"}:
+        key = "scripted"
+    elif key in {"lmstudio", "lm-studio", "local"}:
+        key = "lmstudio"
+    elif key in {"bedrock", "aws", "sonnet"}:
+        key = "bedrock"
+    else:
+        raise ValueError("mode must be scripted, lmstudio, or bedrock")
+    MODEL_MODE = key
+    os.environ["FAMILY_LOOP_MODEL"] = "mock" if key == "scripted" else key
+    return key
 AWS_REGION = os.environ.get("AWS_REGION", "us-west-2")
 BEDROCK_MODEL_ID = os.environ.get(
     "BEDROCK_MODEL_ID", "global.anthropic.claude-sonnet-4-6"

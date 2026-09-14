@@ -43,6 +43,8 @@ Seeded family: `meera@familyloop.demo` / `parent` and `aarav@familyloop.demo` / 
 - Multi-agent: `family_desk` orchestrator + five specialists **as tools**
 - Deterministic Python owns policy, triage, diffs, pings, and the digest buckets
 - Amazon Bedrock Claude Sonnet when `FAMILY_LOOP_MODEL=bedrock`
+- **Scripted demo** (default) — deterministic Strands loop, video-safe
+- **LM Studio** — live local model at `http://127.0.0.1:1234/v1` (`FAMILY_LOOP_MODEL=lmstudio`)
 - JSON file memory (`data/family.json`)
 - Thin web UI (two doors, parent desk, child home)
 
@@ -81,7 +83,13 @@ Open http://127.0.0.1:8000
 
 1. AWS credentials with Bedrock access to Claude Sonnet in `us-west-2` (or set `AWS_REGION` / `BEDROCK_MODEL_ID`).
 2. In `.env`: `FAMILY_LOOP_MODEL=bedrock`
-3. Restart uvicorn. Desk tape will show `bedrock:…` instead of `mock:desk-router`.
+3. Restart uvicorn. Desk tape will show `bedrock:…` instead of `scripted:desk-router`.
+
+### LM Studio (no Bedrock yet)
+
+1. Open LM Studio, load a model, start the local server (port 1234).
+2. In the header click **LM Studio**, or set `FAMILY_LOOP_MODEL=lmstudio`.
+3. If LM Studio is down, Family Loop stays on **Scripted demo** so the video still works.
 
 The mock model is still a real Strands `Agent` loop: it emits tool-use events and the same `@tool` specialists run. Use it for tests and for a live URL if Bedrock is not on that host.
 

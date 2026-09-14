@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 from app.agents.model import model_label
+from app.agents.roster import agents_for_event
 from app.agents.specialists import orchestrator
 from app.agents.tools import (
     file_child_request,
@@ -29,6 +30,11 @@ def get_orchestrator():
     if _ORCH is None:
         _ORCH = orchestrator()
     return _ORCH
+
+
+def reset_orchestrator() -> None:
+    global _ORCH
+    _ORCH = None
 
 
 def run_desk(event: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -82,6 +88,7 @@ def run_desk(event: str, payload: dict[str, Any] | None = None) -> dict[str, Any
         "used_strands": True,
         "used_agent_loop": used_agent,
         "text": agent_text,
+        "active_agents": agents_for_event(event),
         "state": get_store().snapshot(),
     }
 

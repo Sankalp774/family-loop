@@ -14,7 +14,13 @@ from strands.types.content import Messages
 from strands.types.streaming import StreamEvent
 from strands.types.tools import ToolSpec
 
-from app.config import AWS_REGION, BEDROCK_MODEL_ID, MODEL_MODE
+from app.config import (
+    AWS_REGION,
+    BEDROCK_MODEL_ID,
+    LMSTUDIO_BASE_URL,
+    LMSTUDIO_MODEL,
+    current_model_mode,
+)
 
 log = logging.getLogger("family_loop.model")
 
@@ -251,8 +257,48 @@ def _extract_json(text: str) -> dict[str, Any]:
         return {}
 
 
+def probe_lmstudio() -> dict:
+    import json
+    import urllib.error
+    import urllib.request
+
+    url = f"{LMSTUDIO_BASE_URL}/models"
+    req = urllib.request.Request(url, headers={"Authorization": "Bearer lm-studio"})
+    try:
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        return {"ok": False, "reason": f"LM Studio is not reachable at {LMSTUDIO_BASE_URL} ({exc})."}
+    models = [row.get("id") for row in (payload.get("data") or []) if row.get("id")]
+    return {
+        "ok": True,
+        "base_url": LMSTUDIO_BASE_URL,
+        "models": models,
+        "model_id": LMSTUDIO_MODEL or (models[0] if models else ""),
+    }
+
+
+def _lmstudio_model():
+    probe = probe_lmstudio()
+    if not probe.get("ok"):
+        raise RuntimeError(probe.get("reason") or "LM Studio is not running.")
+    model_id = probe.get("model_id") or "local-model"
+    from strands.models.openai import OpenAIModel
+
+    log.info("Using LM Studio %s at %s", model_id, LMSTUDIO_BASE_URL)
+    return OpenAIModel(
+        client_args={
+            "api_key": os.environ.get("LMSTUDIO_API_KEY", "lm-studio"),
+            "base_url": LMSTUDIO_BASE_URL,
+        },
+        model_id=model_id,
+        params={"temperature": 0.2},
+    )
+
+
 def build_model():
-    if MODEL_MODE in {"bedrock", "aws", "sonnet"}:
+    mode = current_model_mode()
+    if mode == "bedrock":
         from strands.models import BedrockModel
 
         log.info("Using Bedrock model %s in %s", BEDROCK_MODEL_ID, AWS_REGION)
@@ -261,11 +307,18 @@ def build_model():
             region_name=AWS_REGION,
             temperature=0.2,
         )
-    log.info("Using local DeskRouterModel (set FAMILY_LOOP_MODEL=bedrock to use Amazon Bedrock)")
+    if mode == "lmstudio":
+        return _lmstudio_model()
+    log.info("Using scripted DeskRouterModel (demo-safe; no GPU, no Bedrock)")
     return DeskRouterModel()
 
 
 def model_label() -> str:
-    if MODEL_MODE in {"bedrock", "aws", "sonnet"}:
+    mode = current_model_mode()
+    if mode == "bedrock":
         return f"bedrock:{BEDROCK_MODEL_ID}"
-    return "mock:desk-router"
+    if mode == "lmstudio":
+        probe = probe_lmstudio()
+        mid = probe.get("model_id") or LMSTUDIO_MODEL or "local"
+        return f"lmstudio:{mid}"
+    return "scripted:desk-router"

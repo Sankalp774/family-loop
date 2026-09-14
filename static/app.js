@@ -44,7 +44,68 @@ async function api(path, options = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || res.statusText);
+  if (data.agent && data.agent.active_agents) wakePets(data.agent.active_agents);
   return data;
+}
+
+const PETS = [
+  { id: "family_desk", name: "Desk", color: "#9a3b38" },
+  { id: "setup_coach", name: "Coach", color: "#1f1d1b" },
+  { id: "request_triage", name: "Triage", color: "#5c5346" },
+  { id: "checkin_runner", name: "Check-in", color: "#3d6b52" },
+  { id: "digest_writer", name: "Digest", color: "#3f4a44" },
+  { id: "override_clerk", name: "Clerk", color: "#6f6b66" },
+];
+
+function petSVG(color) {
+  const dark = "#1f1d1b";
+  return `<svg viewBox="0 0 64 72" class="pet-svg" aria-hidden="true">
+    <ellipse cx="32" cy="42" rx="20" ry="22" fill="${color}"/>
+    <ellipse cx="32" cy="26" rx="18" ry="16" fill="${color}"/>
+    <path d="M16 40 h32 v18 a8 8 0 0 1 -8 8 H24 a8 8 0 0 1 -8 -8 z" fill="${dark}" opacity="0.22"/>
+    <rect x="15" y="21" width="34" height="5" rx="2.5" fill="#d9d4cc"/>
+    <circle cx="24" cy="28" r="8" fill="#f7f4ef"/>
+    <circle cx="40" cy="28" r="8" fill="#f7f4ef"/>
+    <circle cx="24" cy="28" r="3.4" fill="${dark}"/>
+    <circle cx="40" cy="28" r="3.4" fill="${dark}"/>
+    <rect x="27" y="47" width="10" height="7" rx="2" fill="#f7f4ef" opacity="0.7"/>
+  </svg>`;
+}
+
+function mountPets() {
+  const stage = $("pet-stage");
+  if (!stage) return;
+  stage.innerHTML = PETS.map((p) =>
+    `<div class="pet" data-pet="${p.id}" title="${p.name}">
+      ${petSVG(p.color)}
+      <span class="pet-name" style="color:${p.color}">${p.name}</span>
+    </div>`
+  ).join("");
+}
+
+function wakePets(ids) {
+  const wanted = new Set(ids || []);
+  document.querySelectorAll(".pet").forEach((el) => {
+    const on = wanted.has(el.dataset.pet);
+    el.classList.toggle("busy", on);
+    if (on) {
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.remove("busy"), 4200);
+    }
+  });
+}
+
+async function refreshModelSwitch() {
+  try {
+    const info = await api("/api/model");
+    document.querySelectorAll("#model-switch [data-mode]").forEach((btn) => {
+      btn.classList.toggle("on", btn.dataset.mode === info.mode);
+    });
+    state.model = info.label;
+    if ($("model-label")) $("model-label").textContent = info.label;
+  } catch (_) {
+    /* stay on scripted */
+  }
 }
 
 function toast(msg) {
@@ -1030,6 +1091,24 @@ $("locks-form").addEventListener("change", () => {
   $("locks-form").requestSubmit();
 });
 
+$("model-switch")?.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-mode]");
+  if (!btn) return;
+  try {
+    const data = await api("/api/model", { method: "POST", body: JSON.stringify({ mode: btn.dataset.mode }) });
+    document.querySelectorAll("#model-switch [data-mode]").forEach((b) => {
+      b.classList.toggle("on", b.dataset.mode === data.mode);
+    });
+    state.model = data.label;
+    if ($("model-label")) $("model-label").textContent = data.label;
+    toast(data.mode === "lmstudio" ? "Live local model from LM Studio." : "Scripted demo — video-safe.");
+    wakePets(["family_desk"]);
+  } catch (err) {
+    toast(err.message);
+    refreshModelSwitch();
+  }
+});
+
 $("parent-nav")?.addEventListener("click", (ev) => {
   const btn = ev.target.closest("[data-pane]");
   if (!btn) return;
@@ -1128,6 +1207,8 @@ async function renderHome() {
   }
 }
 
+mountPets();
+refreshModelSwitch();
 addAskForm();
 
 const doorParam = new URLSearchParams(location.search).get("door");

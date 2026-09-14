@@ -20,6 +20,10 @@
       </div>
     </div>
     <p class="stamp">We do not control the device.</p>
+    <div class="model-switch" id="model-switch">
+      <button type="button" data-mode="scripted" class="on">Scripted demo</button>
+      <button type="button" data-mode="lmstudio">LM Studio</button>
+    </div>
     <div class="agent-dock" id="agent-dock">
       <button type="button" class="agent-fab" id="agent-toggle" aria-expanded="false">
         <span class="agent-stack" aria-hidden="true">
@@ -44,7 +48,7 @@
           <li data-agent="digest"><b>Digest writer</b> — Sunday Red / Needs you / Green, then a WhatsApp-shaped letter.</li>
           <li data-agent="clerk"><b>Override clerk</b> — logs Meera’s yes/no and one-off exceptions. Aarav cannot approve himself.</li>
         </ol>
-        <p class="tiny">Strands agents-as-tools on Bedrock. Deterministic Python owns the store.</p>
+        <p class="tiny">Strands agents-as-tools. Scripted demo is video-safe. LM Studio is the live local model. Deterministic Python owns the store.</p>
       </div>
     </div>
     <div class="top-meta" id="top-meta" hidden>
@@ -54,6 +58,7 @@
       <button type="button" class="text-btn" id="logout">Leave</button>
     </div>
   </header>
+  <div class="pet-stage" id="pet-stage" aria-live="polite"></div>
 
   <main>
     <section id="doors" class="doors">
