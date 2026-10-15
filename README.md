@@ -2,6 +2,10 @@
 
 **Track: Everyday Agents — [Agents for Humans](https://agentsforhumans.devpost.com/)**
 
+**Demo video:** [https://youtu.be/neJLUnf4qBk](https://youtu.be/neJLUnf4qBk)
+
+[![Family Loop demo video](https://img.youtube.com/vi/neJLUnf4qBk/hqdefault.jpg)](https://youtu.be/neJLUnf4qBk)
+
 Phones enforce. Agents remind, compare, and ask. Parent only shows up for a real yes/no.
 
 **We do not control the device.**
